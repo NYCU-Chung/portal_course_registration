@@ -85,15 +85,19 @@ async function fetchAllCourses() {
     // 第二步：處理每個系所並顯示百分比進度
     for (const item of allDepartmentsList) {
       processedDepartments++;
-      const progress = ((processedDepartments / totalDepartments) * 100).toFixed(2);
-
-
       // 每處理 5 個系所更新一次進度通知
       if (processedDepartments % 5 === 0 || processedDepartments === totalDepartments) {
-        showNotification(`載入中 ${progress}% (${processedDepartments}/${totalDepartments}) - ${coursesMap.size} 筆課程`, false, 0);
+        showNotification(`載入中 (${processedDepartments}/${totalDepartments} 系所) - ${coursesMap.size} 筆課程`, false, 0);
       }
 
-      const courses = await getCourseList(acysem, item.dept.uid);
+      let courses;
+      try {
+        courses = await getCourseList(acysem, item.dept.uid);
+      } catch (error) {
+        console.warn(`⚠️ 跳過系所 ${item.dept.cname || item.dept.uid}:`, error.message);
+        await sleep(100);
+        continue;
+      }
       let newCoursesFromThisDept = 0;
 
       courses.forEach(course => {
@@ -292,6 +296,53 @@ async function getAllDepartmentsByType(acysem, ftype) {
       ? Object.entries(colleges)
       : [];
 
+    // 沒有 college 層：嘗試直接查系所
+    if (collegeEntries.length === 0) {
+      const directDeptsData = await apiRequest('?r=main/get_dep', {
+        ftype: ftype,
+        flang: 'zh-tw',
+        acysem: acysem,
+        acysemend: acysem,
+        fcategory: categoryId,
+        fcollege: ''
+      }, 'POST');
+
+      const directEntries = directDeptsData && typeof directDeptsData === 'object' && !Array.isArray(directDeptsData)
+        ? Object.entries(directDeptsData)
+        : [];
+
+      if (directEntries.length > 0) {
+        // 如果 categoryId 在結果中（如「其他課程」下的軍訓），只取該項避免重複
+        // 否則（如學分學程、跨域學程），取所有項目
+        const selfEntry = directEntries.find(([deptId]) => deptId === categoryId);
+        const toAdd = selfEntry ? [selfEntry] : directEntries;
+
+        for (const [deptId, deptData] of toAdd) {
+          const dept = typeof deptData === 'string'
+            ? { uid: deptId, cname: deptData, ename: deptData }
+            : { uid: deptId, cname: String(deptData || deptId), ename: String(deptData || deptId) };
+          dept.college_cname = '';
+          dept.college_id = '';
+          dept.category_cname = categoryName || '';
+          dept.category_id = categoryId;
+          allDepartments.push(dept);
+        }
+      } else if (categoryId) {
+        // get_dep 也沒資料，以 categoryId 本身試看看
+        allDepartments.push({
+          uid: categoryId,
+          cname: categoryName || categoryId,
+          ename: categoryName || categoryId,
+          college_cname: '',
+          college_id: '',
+          category_cname: categoryName || '',
+          category_id: categoryId
+        });
+      }
+      await sleep(50);
+      continue;
+    }
+
     // 對每個學院獲取系所
     for (const [collegeId, collegeName] of collegeEntries) {
 
@@ -384,25 +435,31 @@ async function getDepartments(acysem, collegeUid) {
 async function getCourseList(acysem, deptUid) {
   const [acy, sem] = splitAcysem(acysem);
 
-  const data = await apiRequest('?r=main/get_cos_list', {
-    m_acy: acy,
-    m_sem: sem,
-    m_acyend: acy,
-    m_semend: sem,
-    m_dep_uid: deptUid,
-    m_group: '**',
-    m_grade: '**',
-    m_class: '**',
-    m_option: '**',
-    m_crsname: '**',
-    m_teaname: '**',
-    m_cos_id: '**',
-    m_cos_code: '**',
-    m_crstime: '**',
-    m_crsoutline: '**',
-    m_costype: '**',
-    m_selcampus: '**'
-  }, 'POST');
+  let data;
+  try {
+    data = await apiRequest('?r=main/get_cos_list', {
+      m_acy: acy,
+      m_sem: sem,
+      m_acyend: acy,
+      m_semend: sem,
+      m_dep_uid: deptUid,
+      m_group: '**',
+      m_grade: '**',
+      m_class: '**',
+      m_option: '**',
+      m_crsname: '**',
+      m_teaname: '**',
+      m_cos_id: '**',
+      m_cos_code: '**',
+      m_crstime: '**',
+      m_crsoutline: '**',
+      m_costype: '**',
+      m_selcampus: '**'
+    }, 'POST');
+  } catch (error) {
+    console.warn(`⚠️ 系所 ${deptUid} 課程查詢失敗，跳過:`, error.message);
+    return [];
+  }
 
   // data 是物件格式，課程資料可能藏在數字鍵中（學期/年級）
   if (!data || typeof data !== 'object') {

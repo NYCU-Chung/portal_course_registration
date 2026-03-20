@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NYCU 選課助手",
-  "version": "3.1.0",
+  "version": "3.1.2",
   "description": "NYCU 選課助手：支援 AI 智能搜尋、多條件篩選、課程詳細資訊查詢、書籤管理、課表製作與匯出，讓選課更輕鬆！",
   "permissions": [
     "storage",

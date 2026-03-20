@@ -1113,6 +1113,7 @@ h2 {
   border-radius: 8px;
   background: linear-gradient(to right, #E1F5FE 0%, #ffffff 100%);
   transition: all 0.3s;
+  cursor: pointer;
 }
 
 .list-course-item:hover {
@@ -1264,27 +1265,27 @@ h2 {
   color: #388E3C !important;
 }
 
-/* 體育課程 - 淺橘色系 */
-.category-physical {
+/* 其他課程（英文/體育等）- 淺橘色系 */
+.category-other {
   background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%) !important;
   border: none !important;
   box-shadow: 0 2px 4px rgba(255, 167, 38, 0.15) !important;
 }
 
-.category-physical:hover {
+.category-other:hover {
   background: linear-gradient(135deg, #FFE0B2 0%, #FFCC80 100%) !important;
   box-shadow: 0 4px 8px rgba(255, 167, 38, 0.25) !important;
 }
 
-.category-physical .slot-course-name {
+.category-other .slot-course-name {
   color: #EF6C00 !important;
 }
 
-.category-physical .slot-course-teacher {
+.category-other .slot-course-teacher {
   color: #F57C00 !important;
 }
 
-.category-physical .slot-course-room {
+.category-other .slot-course-room {
   color: #F57C00 !important;
 }
 
@@ -1312,54 +1313,6 @@ h2 {
   color: #7B1FA2 !important;
 }
 
-/* 服務學習課程 - 淺青色系 */
-.category-service {
-  background: linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%) !important;
-  border: none !important;
-  box-shadow: 0 2px 4px rgba(38, 198, 218, 0.15) !important;
-}
-
-.category-service:hover {
-  background: linear-gradient(135deg, #B2EBF2 0%, #80DEEA 100%) !important;
-  box-shadow: 0 4px 8px rgba(38, 198, 218, 0.25) !important;
-}
-
-.category-service .slot-course-name {
-  color: #00838F !important;
-}
-
-.category-service .slot-course-teacher {
-  color: #00ACC1 !important;
-}
-
-.category-service .slot-course-room {
-  color: #00ACC1 !important;
-}
-
-/* 外語課程 - 淺藍色系 */
-.category-language {
-  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%) !important;
-  border: none !important;
-  box-shadow: 0 2px 4px rgba(66, 165, 245, 0.15) !important;
-}
-
-.category-language:hover {
-  background: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%) !important;
-  box-shadow: 0 4px 8px rgba(66, 165, 245, 0.25) !important;
-}
-
-.category-language .slot-course-name {
-  color: #0D47A1 !important;
-}
-
-.category-language .slot-course-teacher {
-  color: #1565C0 !important;
-}
-
-.category-language .slot-course-room {
-  color: #1565C0 !important;
-}
-
 /* 清單式課表的類別顏色 */
 .list-course-item.category-required {
   border-color: #EF5350 !important;
@@ -1371,7 +1324,7 @@ h2 {
   background: linear-gradient(to right, #E8F5E9 0%, #ffffff 100%) !important;
 }
 
-.list-course-item.category-physical {
+.list-course-item.category-other {
   border-color: #FFA726 !important;
   background: linear-gradient(to right, #FFF3E0 0%, #ffffff 100%) !important;
 }
@@ -1381,15 +1334,36 @@ h2 {
   background: linear-gradient(to right, #F3E5F5 0%, #ffffff 100%) !important;
 }
 
-.list-course-item.category-service {
-  border-color: #26C6DA !important;
-  background: linear-gradient(to right, #E0F7FA 0%, #ffffff 100%) !important;
+/* 軍訓課程 - 軍綠色系 */
+.category-military {
+  background: linear-gradient(135deg, #F1F8E9 0%, #DCEDC8 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 4px rgba(124, 179, 66, 0.15) !important;
 }
 
-.list-course-item.category-language {
-  border-color: #42A5F5 !important;
-  background: linear-gradient(to right, #E3F2FD 0%, #ffffff 100%) !important;
+.category-military:hover {
+  background: linear-gradient(135deg, #DCEDC8 0%, #C5E1A5 100%) !important;
+  box-shadow: 0 4px 8px rgba(124, 179, 66, 0.25) !important;
 }
+
+.category-military .slot-course-name {
+  color: #33691E !important;
+}
+
+.category-military .slot-course-teacher {
+  color: #558B2F !important;
+}
+
+.category-military .slot-course-room {
+  color: #558B2F !important;
+}
+
+.list-course-item.category-military {
+  border-color: #8BC34A !important;
+  background: linear-gradient(to right, #F1F8E9 0%, #ffffff 100%) !important;
+}
+
+
 
 
 /* ==================== 課表選項勾選框樣式 ==================== */
@@ -1892,7 +1866,7 @@ h2 {
   background: linear-gradient(to right, #E8F5E9 0%, #ffffff 100%);
 }
 
-.slot-course-item.category-physical {
+.slot-course-item.category-other {
   border-color: #FFA726;
   background: linear-gradient(to right, #FFF3E0 0%, #ffffff 100%);
 }
@@ -1902,15 +1876,11 @@ h2 {
   background: linear-gradient(to right, #F3E5F5 0%, #ffffff 100%);
 }
 
-.slot-course-item.category-service {
-  border-color: #26C6DA;
-  background: linear-gradient(to right, #E0F7FA 0%, #ffffff 100%);
+.slot-course-item.category-military {
+  border-color: #8BC34A;
+  background: linear-gradient(to right, #F1F8E9 0%, #ffffff 100%);
 }
 
-.slot-course-item.category-language {
-  border-color: #42A5F5;
-  background: linear-gradient(to right, #E3F2FD 0%, #ffffff 100%);
-}
 
 /* 滾動條樣式 */
 .slot-courses-list::-webkit-scrollbar {
@@ -2764,6 +2734,64 @@ h2 {
   background: linear-gradient(135deg, #45a049 0%, #388E3C 100%);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.guide-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guide-step-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+
+.guide-step-desc {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.guide-step-status {
+  background: #f7f9fc;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: #444;
+}
+
+.guide-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.guide-status-item {
+  margin-bottom: 6px;
+}
+
+.guide-status-item:last-child {
+  margin-bottom: 0;
+}
+
+.guide-status.ok {
+  color: #2E7D32;
+  font-weight: 600;
+}
+
+.guide-status.warn {
+  color: #C62828;
+  font-weight: 600;
+}
+
+.guide-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 /* 設置區塊 */

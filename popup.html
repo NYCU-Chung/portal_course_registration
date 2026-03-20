@@ -190,6 +190,10 @@
               <input type="checkbox" class="filter-course-type" value="service">
               <span>服務學習</span>
             </label>
+            <label class="filter-checkbox">
+              <input type="checkbox" class="filter-course-type" value="military">
+              <span>軍訓</span>
+            </label>
           </div>
         </div>
 
@@ -659,9 +663,8 @@
               • 🔴 必修課程：紅色系<br>
               • 🟢 選修課程：綠色系<br>
               • 🟣 通識課程：紫色系<br>
-              • 🟠 體育課程：橘色系<br>
-              • 🔵 外語課程：藍色系<br>
-              • 🩵 服務學習：青色系
+              • 🟠 體育／外語／服務學習：橘色系<br>
+              • 🟩 軍訓課程：軍綠色系
             </div>
 
             <h3>管理課表</h3>
@@ -841,7 +844,7 @@
             <p>A: 可以！匯出的 .ics 檔案支援所有主流日曆應用（Google Calendar、Outlook、Apple Calendar 等）。</p>
 
             <h3>Q: 課程顏色代表什麼意思？</h3>
-            <p>A: 課程會根據類型顯示不同顏色：必修（紅色）、選修（綠色）、通識（紫色）、體育（橘色）、外語（藍色）、服務學習（青色）。</p>
+            <p>A: 課程會根據類型顯示不同顏色：必修（紅色）、選修（綠色）、通識（紫色）、體育／外語／服務學習（橘色）、軍訓（軍綠色）。</p>
 
             <h3>Q: 如何查看課程的選課路徑？</h3>
             <p>A: 點擊「📋 查看完整資訊」按鈕，詳細頁面會顯示所有可用的選課路徑（類型 / 類別 / 學院 / 系所 / 年級）。</p>
@@ -934,117 +937,6 @@
               <span>啟用 AI 搜尋</span>
             </label>
           </div>
-
-          <div id="aiSettings" style="display: none;">
-            <!-- Gemini 設置 -->
-            <div id="geminiSettings" class="provider-settings">
-              <div class="setting-item">
-                <label class="setting-label-block">
-                  <span>Gemini API Key</span>
-                  <input type="password" id="geminiKey" class="setting-input" placeholder="AIza...">
-                </label>
-                <div class="api-key-security-note">
-                  🔒 API Key 僅儲存在本機瀏覽器中，不會上傳至任何伺服器
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <label class="setting-label-block">
-                  <span>AI 模型</span>
-                  <select id="geminiModel" class="setting-input" style="cursor: pointer;">
-                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite（速度最快）</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash（更強大）</option>
-                  </select>
-                </label>
-                <div style="font-size: 12px; color: #666; margin-top: 4px;">
-                  Flash-Lite：速度快、成本低 ｜ Flash：推理能力更強
-                </div>
-              </div>
-
-              <div class="setting-tip">
-                <strong>📝 步驟一：申請 Google Gemini API 金鑰</strong><br>
-                1. 訪問 <a href="https://aistudio.google.com/apikey" target="_blank" style="color: #7c4dff;">Google AI Studio API Keys 頁面</a>（https://aistudio.google.com/apikey）<br>
-                2. 點擊「Create API key」→ 選擇或建立一個專案<br>
-                3. 複製顯示的 API 金鑰（格式：AIzaSy... 開頭，39 個字元）<br>
-                4. 將金鑰貼到上方的「Gemini API Key」輸入框中<br><br>
-
-                <strong style="color: #ff5722;">⚠️ 步驟二：連結帳單帳戶（重要！）</strong><br>
-                <div style="background-color: #fff3e0; padding: 12px; border-radius: 6px; margin: 8px 0; border-left: 4px solid #ff9800;">
-                  <strong>為什麼需要連結帳單帳戶？</strong><br>
-                  <table style="width: 100%; margin-top: 8px; font-size: 12px; border-collapse: collapse;">
-                    <tr style="background-color: #f5f5f5;">
-                      <th style="padding: 6px; text-align: left; border: 1px solid #ddd;">項目</th>
-                      <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">未連結帳單</th>
-                      <th style="padding: 6px; text-align: center; border: 1px solid #ddd; background-color: #e8f5e9;">已連結帳單</th>
-                    </tr>
-                    <tr>
-                      <td style="padding: 6px; border: 1px solid #ddd;">每分鐘請求數（RPM）</td>
-                      <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #f44336;"><strong>15</strong></td>
-                      <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #4caf50;"><strong>1,000</strong></td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 6px; border: 1px solid #ddd;">每天 Token 額度</td>
-                      <td style="padding: 6px; text-align: center; border: 1px solid #ddd;">有限</td>
-                      <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #4caf50;">1,500,000</td>
-                    </tr>
-                  </table>
-                  <div style="margin-top: 8px; font-size: 12px;">
-                    💳 <strong>不用擔心費用：</strong>Google 提供 $300 美元免費試用額度，<span style="color: #4caf50; font-weight: bold;">不會自動扣款</span>！<br>
-                    💰 <strong>實際費用：</strong>Gemini 2.5 Flash 完全免費！
-                  </div>
-                </div>
-
-                <strong>如何連結帳單帳戶：</strong><br>
-                <div style="margin-left: 12px; font-size: 12px;">
-                  <strong>方法一：通過 Google AI Studio</strong><br>
-                  1. 在 <a href="https://aistudio.google.com/" target="_blank" style="color: #7c4dff;">Google AI Studio</a> 頁面，點擊「Billing」或「View your billing account」<br>
-                  2. 點擊「Link a billing account」<br>
-                  3. 如果沒有帳單帳戶，點擊「Create billing account」<br>
-                  4. 填寫國家、帳戶名稱、幣別<br>
-                  5. 輸入信用卡資訊（會先扣 $1 驗證，稍後退回）<br>
-                  6. 點擊「Submit」完成<br><br>
-
-                  <strong>方法二：直接到 Google Cloud Console</strong><br>
-                  1. 訪問 <a href="https://console.cloud.google.com/billing" target="_blank" style="color: #7c4dff;">Google Cloud Console - Billing</a><br>
-                  2. 點擊「Create account」建立帳單帳戶<br>
-                  3. 按照上述步驟 4-6 完成設定<br>
-                  4. 回到 AI Studio，選擇剛建立的帳單帳戶連結
-                </div>
-                <br>
-
-                <strong>💰 費用與額度說明</strong><br>
-                • <strong>Gemini 2.5 Flash：完全免費</strong>（推薦使用）<br>
-                • AI 搜尋：每次約 500-2000 tokens<br>
-                • 關鍵字學習：3,000 門課 × 1,000 tokens = 一次性<br>
-                • 即使連結帳單，也不會扣款（因為使用免費模型）<br>
-                • 每月使用成本：<strong>$0 元</strong>（100% 免費）<br><br>
-
-                <strong>❓ 常見問題</strong><br>
-                <div style="margin-left: 12px; font-size: 12px;">
-                  <strong>Q: AI 搜尋時出現「Resource has been exhausted」錯誤？</strong><br>
-                  A: 這表示 API 請求額度用盡。<strong>請立即連結帳單帳戶</strong>，額度會從 15 RPM 提升到 1,000 RPM。<br><br>
-
-                  <strong>Q: 連結帳單會被扣款嗎？</strong><br>
-                  A: 不會！使用 Gemini 2.5 Flash 完全免費，且 Google 提供 $300 試用額度，不會自動扣款。<br><br>
-
-                  <strong>Q: 如何確認帳單已連結？</strong><br>
-                  A: 在 <a href="https://console.cloud.google.com/billing" target="_blank" style="color: #7c4dff;">Google Cloud Console - Billing</a> 查看，專案旁應顯示「Billing account linked」。<br><br>
-
-                  <strong>Q: 為什麼建議連結帳單帳戶？</strong><br>
-                  A: 未連結時每分鐘只能請求 15 次，<strong>關鍵字學習功能會非常慢</strong>。連結後可達 1,000 次/分鐘，大幅加速學習過程。
-                </div>
-              </div>
-            </div>
-
-            <!-- 連接狀態 -->
-            <div class="setting-item">
-              <div id="aiStatus" class="ollama-status">
-                <span class="status-icon">⏳</span>
-                <span class="status-text">未檢測</span>
-              </div>
-              <button id="testAIBtn" class="test-btn">測試連接</button>
-            </div>
-          </div>
         </div>
 
         <div class="settings-section">
@@ -1080,6 +972,26 @@
       </div>
       <div class="modal-footer">
         <button id="saveSettings" class="btn-primary">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="aiGuideModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🧭 AI 啟用導引</h2>
+        <button class="modal-close" id="closeAIGuide">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="guide-step">
+          <div id="aiGuideStepTitle" class="guide-step-title"></div>
+          <div id="aiGuideStepDesc" class="guide-step-desc"></div>
+          <div id="aiGuideStepStatus" class="guide-step-status"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="aiGuidePrev" class="btn-secondary">上一步</button>
+        <button id="aiGuideNext" class="btn-primary">下一步</button>
       </div>
     </div>
   </div>

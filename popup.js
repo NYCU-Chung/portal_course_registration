@@ -979,6 +979,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cos_name.includes('服務學習') || cos_name.includes('服務')) {
               matchesAnyType = true;
             }
+          } else if (type === 'military') {
+            // 軍訓：檢查課程名稱、系所或 cos_type 是否包含「軍訓」或「國防教育」
+            if (cos_name.includes('軍訓') || cos_name.includes('國防教育') ||
+                (course.cos_type && course.cos_type.includes('軍訓')) ||
+                (course.dep_name && (course.dep_name.includes('軍訓') || course.dep_name.includes('軍訓暨護理')))) {
+              matchesAnyType = true;
+            }
           }
         }
 
@@ -1066,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 檢查是否有任何篩選條件被選擇
   function hasActiveFilters() {
-    // 檢查課程類型（必修、選修、通識、核心、體育、外語、服務學習）
+    // 檢查課程類型（必修、選修、通識、核心、體育、外語、服務學習、軍訓）
     const hasCourseTypes = Array.from(filterCourseTypes).some(cb => cb.checked);
     if (hasCourseTypes) return true;
 
@@ -1231,8 +1238,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const room = course.room ? course.room.toLowerCase() : '';
 
     // 獲取課程搜尋關鍵字（如果已經查看過詳細資訊並提取過關鍵字）
-    const courseKey = getCourseKey(course);
-    const courseDetails = courseDetailsCache[courseKey];
+    const courseDetailsKey = getCourseDetailsKey(course);
+    const courseDetails = courseDetailsCache[courseDetailsKey];
     const outline = courseDetails && courseDetails.searchKeywords ? courseDetails.searchKeywords.toLowerCase() : '';
 
     // 對每個字段記錄最高匹配分數（避免重複計分）
@@ -1541,9 +1548,9 @@ document.addEventListener('DOMContentLoaded', function() {
     headerHtml += '</div>';
 
     // 只渲染要顯示的課程
-    const displayResults = results.slice(0, displayCount);
+    const coursesToDisplay = results.slice(0, displayCount);
 
-    const html = displayResults.map((course, index) => {
+    const html = coursesToDisplay.map((course, index) => {
       // 獲取分數（精準模式）
       const courseId = course.cos_id || course.code;
       const scoreData = scoreMap && scoreMap.has(courseId) ? scoreMap.get(courseId) : null;
@@ -1944,8 +1951,8 @@ document.addEventListener('DOMContentLoaded', function() {
       // 計算已提取關鍵字的課程數量
       let extractedCount = 0;
       for (const course of result.courseData) {
-        const courseKey = getCourseKey(course);
-        const cached = cache[courseKey];
+        const courseDetailsKey = getCourseDetailsKey(course);
+        const cached = cache[courseDetailsKey];
         if (cached && cached.searchKeywords) {
           extractedCount++;
         }
@@ -1993,6 +2000,10 @@ document.addEventListener('DOMContentLoaded', function() {
           courseDetailsCache = result.courseDetailsCache || {};
           console.log(`📦 載入關鍵字快取：${Object.keys(courseDetailsCache).length} 門課程`);
         }
+        const needsCompact = Object.values(courseDetailsCache).some(details => details && details._partial !== true);
+        if (needsCompact) {
+          saveCourseDetailsCache();
+        }
         resolve();
       });
     });
@@ -2002,11 +2013,29 @@ document.addEventListener('DOMContentLoaded', function() {
   function saveCourseDetailsCache() {
     // 同時保存快取和當前課程資料的時間戳
     chrome.storage.local.get(['lastUpdate'], function(result) {
+      const minimalCache = {};
+      for (const [key, details] of Object.entries(courseDetailsCache)) {
+        if (!details) continue;
+        minimalCache[key] = {
+          searchKeywords: details.searchKeywords || '',
+          必選修: details.必選修 || '',
+          _partial: true
+        };
+      }
+
       chrome.storage.local.set({
-        courseDetailsCache: courseDetailsCache,
+        courseDetailsCache: minimalCache,
         cacheLastUpdate: result.lastUpdate || Date.now()
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('⚠️ 儲存課程快取失敗:', chrome.runtime.lastError.message);
+        }
       });
     });
+  }
+
+  function isDetailsPartial(details) {
+    return !details || details._partial === true;
   }
 
   // ==================== 書籤相關函數 ====================
@@ -2014,6 +2043,60 @@ document.addEventListener('DOMContentLoaded', function() {
   // 生成課程唯一鍵
   function getCourseKey(course) {
     return course.cos_id || course.code || `${course.name}_${course.teacher}`;
+  }
+
+  // 課程詳細資訊快取鍵（同課號不同老師需分開）
+  function getCourseDetailsKey(course) {
+    const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+    const parts = [];
+    if (course) {
+      if (course.acy) parts.push(`acy=${normalize(course.acy)}`);
+      if (course.sem) parts.push(`sem=${normalize(course.sem)}`);
+      if (course.cos_id) parts.push(`cos=${normalize(course.cos_id)}`);
+      if (course.code) parts.push(`code=${normalize(course.code)}`);
+      if (course.name) parts.push(`name=${normalize(course.name)}`);
+      if (course.teacher) parts.push(`teacher=${normalize(course.teacher)}`);
+      if (course.time) parts.push(`time=${normalize(course.time)}`);
+    }
+    if (parts.length === 0) {
+      return 'unknown';
+    }
+    return parts.join('|');
+  }
+
+  function findLatestCourse(course, courseData) {
+    if (!course || !Array.isArray(courseData)) return null;
+    if (course.cos_id) {
+      const matchById = courseData.find(c => c.cos_id === course.cos_id);
+      if (matchById) return matchById;
+    }
+    const code = course.code;
+    const name = course.name;
+    if (!code || !name) return null;
+
+    const normalize = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+    const teacher = normalize(course.teacher);
+    const time = normalize(course.time);
+
+    let match = courseData.find(c =>
+      c.code === code && c.name === name &&
+      normalize(c.teacher) === teacher && normalize(c.time) === time
+    );
+    if (match) return match;
+
+    match = courseData.find(c =>
+      c.code === code && c.name === name &&
+      normalize(c.teacher) === teacher
+    );
+    if (match) return match;
+
+    match = courseData.find(c =>
+      c.code === code && c.name === name &&
+      normalize(c.time) === time
+    );
+    if (match) return match;
+
+    return courseData.find(c => c.code === code && c.name === name) || null;
   }
 
   // 截斷教師名單（超過2位顯示「等」）
@@ -2844,70 +2927,90 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 取得課程類別（用於決定顏色）
   function getCourseCategory(course) {
+    const courseDetailsKey = getCourseDetailsKey(course);
+    const cachedDetails = courseDetailsCache[courseDetailsKey];
+    const cachedType = cachedDetails && cachedDetails.必選修 && cachedDetails.必選修 !== '未提供'
+      ? String(cachedDetails.必選修).trim()
+      : '';
+    const courseType = (cachedType || course.cos_type || '').trim();
     const courseName = course.name || '';
-
-    // 優先從課程名稱判斷特殊類別
-    // 體育課程
-    if (courseName.includes('體育') || courseName.startsWith('體育－')) {
-      return 'physical';
+    const departmentName = course.dep_name || '';
+    if (courseName.includes('軍訓') || courseName.includes('國防教育') ||
+        departmentName.includes('軍訓') || departmentName.includes('軍訓暨護理') ||
+        courseType.includes('軍訓')) {
+      return 'military';
+    }
+    if (courseName.includes('體育') || courseName.startsWith('體育－') ||
+        departmentName.includes('體育') || courseType.includes('體育')) {
+      return 'other';
+    }
+    if (courseType) {
+      if (courseType.includes('必修')) {
+        return 'required';
+      }
+      if (courseType.includes('核心')) {
+        return 'general';
+      }
+      if (courseType.includes('選修')) {
+        return 'elective';
+      }
+      if (courseType.includes('體育') || courseType.includes('語言') || courseType.includes('教育')) {
+        return 'other';
+      }
     }
 
-    // 外語課程（英文、日文、法文、德文、西班牙文等）
+    if (course.paths && Array.isArray(course.paths) && course.paths.length > 0) {
+      let hasRequired = false;
+      let hasElective = false;
+      let hasGeneral = false;
+      for (const path of course.paths) {
+        const typeOrCategory = String(path.type || path.category || '').trim();
+        const department = path.department || '';
+        const isElectiveKeyword = typeOrCategory.includes('選修') ||
+          typeOrCategory.includes('選必') ||
+          typeOrCategory.includes('必選') ||
+          typeOrCategory.includes('必選修');
+        if (typeOrCategory.includes('通識') || typeOrCategory.includes('博雅') ||
+            typeOrCategory.includes('核心課程') || department.includes('通識') || department.includes('博雅')) {
+          hasGeneral = true;
+        }
+        if (typeOrCategory.includes('必修') || (typeOrCategory.includes('必') && !isElectiveKeyword)) {
+          hasRequired = true;
+        }
+        if (isElectiveKeyword || typeOrCategory.includes('選')) {
+          hasElective = true;
+        }
+      }
+
+      if (hasRequired) {
+        return 'required';
+      }
+      if (hasGeneral) {
+        return 'general';
+      }
+      if (hasElective) {
+        return 'elective';
+      }
+    }
+
+    if (courseName.includes('通識') || courseName.includes('博雅') ||
+        courseName.includes('人文') || courseName.includes('社會') ||
+        courseName.includes('自然') || courseName.includes('經典閱讀')) {
+      return 'general';
+    }
+    if (courseName.includes('體育') || courseName.startsWith('體育－')) {
+      return 'other';
+    }
     if (courseName.includes('英文') || courseName.includes('英語') ||
         courseName.includes('日文') || courseName.includes('日語') ||
         courseName.includes('法文') || courseName.includes('法語') ||
         courseName.includes('德文') || courseName.includes('德語') ||
         courseName.includes('西班牙') || courseName.includes('韓文') ||
         courseName.includes('韓語') || courseName.includes('外語')) {
-      return 'language';
+      return 'other';
     }
-
-    // 通識課程（常見關鍵字）
-    if (courseName.includes('通識') || courseName.includes('博雅') ||
-        courseName.includes('人文') || courseName.includes('社會') ||
-        courseName.includes('自然') || courseName.includes('經典閱讀')) {
-      return 'general';
-    }
-
-    // 服務學習
     if (courseName.includes('服務學習') || courseName.includes('服學')) {
-      return 'service';
-    }
-
-    // 檢查 paths 中的類別資訊
-    if (course.paths && Array.isArray(course.paths) && course.paths.length > 0) {
-      // 檢查所有 paths，找到第一個有效的類別
-      for (const path of course.paths) {
-        const typeOrCategory = path.type || path.category || '';
-        const department = path.department || '';
-
-        // 必修（從 type/category 判斷）
-        if (typeOrCategory.includes('必修') || typeOrCategory.includes('必')) {
-          return 'required';
-        }
-        // 體育
-        if (typeOrCategory.includes('體育') || department.includes('體育')) {
-          return 'physical';
-        }
-        // 外語
-        if (typeOrCategory.includes('外語') || department.includes('外語') ||
-            department.includes('語言') || department.includes('Language')) {
-          return 'language';
-        }
-        // 通識
-        if (typeOrCategory.includes('通識') || typeOrCategory.includes('博雅') ||
-            department.includes('通識') || department.includes('博雅')) {
-          return 'general';
-        }
-        // 服務學習
-        if (typeOrCategory.includes('服務') || typeOrCategory.includes('服學')) {
-          return 'service';
-        }
-        // 選修
-        if (typeOrCategory.includes('選修') || typeOrCategory.includes('選')) {
-          return 'elective';
-        }
-      }
+      return 'other';
     }
 
     // 預設為選修（一般學士班課程多為選修）
@@ -3459,6 +3562,20 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
+    const listItems = timetableList.querySelectorAll('.list-course-item');
+    listItems.forEach(item => {
+      item.addEventListener('click', function(e) {
+        if (e.target.closest('.list-remove-btn')) {
+          return;
+        }
+        const courseKey = this.dataset.courseKey;
+        const course = timetable[courseKey];
+        if (course) {
+          showDetailView(course);
+        }
+      });
+    });
+
     // 恢復捲動位置
     requestAnimationFrame(() => {
       listViewContainer.scrollTop = savedScrollTop;
@@ -3558,7 +3675,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const exportContainer = document.createElement('div');
       exportContainer.style.cssText = `
         width: 1240px;
-        height: 1754px;
+        height: auto;
         padding: 40px;
         background: ${isColorful
           ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
@@ -3569,6 +3686,9 @@ document.addEventListener('DOMContentLoaded', function() {
         box-sizing: border-box;
       `;
 
+      const A4_HEIGHT = 1754;
+      const EXPORT_PADDING = 40;
+
       // 白色內容區域
       const contentWrapper = document.createElement('div');
       contentWrapper.style.cssText = `
@@ -3576,84 +3696,11 @@ document.addEventListener('DOMContentLoaded', function() {
         border-radius: 12px;
         padding: 32px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        height: 100%;
+        height: auto;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
       `;
-
-      // 標題區域
-      const header = document.createElement('div');
-      header.style.cssText = `
-        text-align: center;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid ${isColorful ? '#667eea' : '#333'};
-      `;
-
-      // 主標題
-      const title = document.createElement('div');
-      if (isColorful) {
-        title.style.cssText = `
-          font-size: 26px;
-          font-weight: 900;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          margin-bottom: 6px;
-          letter-spacing: 1px;
-        `;
-      } else {
-        title.style.cssText = `
-          font-size: 26px;
-          font-weight: 900;
-          color: #000;
-          margin-bottom: 6px;
-          letter-spacing: 1px;
-        `;
-      }
-      title.textContent = 'NYCU 課表';
-      header.appendChild(title);
-
-      // 學期/日期資訊
-      const totalCredits = calculateTotalCredits();
-      const date = new Date();
-      const dateStr = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-      const semester = Math.floor((date.getMonth() + 1) / 6) === 0 ? '下學期' : '上學期';
-
-      const creditInfo = document.createElement('div');
-      creditInfo.style.cssText = `
-        font-size: 13px;
-        color: #666;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      `;
-      if (isColorful) {
-        creditInfo.innerHTML = `
-          <span style="background: #E8F5E9; color: #2E7D32; padding: 4px 12px; border-radius: 16px; font-weight: 600; font-size: 12px;">
-            📚 總學分：${totalCredits}
-          </span>
-          <span style="background: #E3F2FD; color: #1565C0; padding: 4px 12px; border-radius: 16px; font-weight: 600; font-size: 12px;">
-            📅 ${dateStr}
-          </span>
-        `;
-      } else {
-        creditInfo.innerHTML = `
-          <span style="background: #f0f0f0; color: #333; padding: 4px 12px; border-radius: 16px; font-weight: 600; font-size: 12px;">
-            📚 總學分：${totalCredits}
-          </span>
-          <span style="background: #e8e8e8; color: #333; padding: 4px 12px; border-radius: 16px; font-weight: 600; font-size: 12px;">
-            📅 ${dateStr}
-          </span>
-        `;
-      }
-      header.appendChild(creditInfo);
-
-      contentWrapper.appendChild(header);
 
       // 克隆課表內容
       const clonedElement = elementToCapture.cloneNode(true);
@@ -3671,6 +3718,8 @@ document.addEventListener('DOMContentLoaded', function() {
         width: 100%;
         height: 100%;
       `;
+
+      let tableContext = null;
 
       // 如果是格子式課表，調整表格樣式以填滿頁面
       const table = clonedElement.querySelector('table');
@@ -3717,7 +3766,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         table.style.width = '100%';
-        table.style.height = '100%';
+        table.style.height = 'auto';
         table.style.minWidth = 'unset';
         table.style.fontSize = '16px';
         table.style.tableLayout = 'fixed';
@@ -3740,14 +3789,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 動態調整格子高度
         const remainingRows = table.querySelectorAll('tbody tr').length;
-        const slotHeight = remainingRows <= 5 ? '120px' : remainingRows <= 7 ? '100px' : remainingRows <= 10 ? '85px' : '72px';
-        const slotPadding = remainingRows <= 5 ? '14px' : remainingRows <= 7 ? '12px' : remainingRows <= 10 ? '10px' : '8px';
+        const baseSlotHeight = remainingRows <= 5 ? 120 : remainingRows <= 7 ? 100 : remainingRows <= 10 ? 85 : 72;
+        const baseSlotPadding = remainingRows <= 5 ? 14 : remainingRows <= 7 ? 12 : remainingRows <= 10 ? 10 : 8;
 
         const slots = clonedElement.querySelectorAll('.course-slot, .conflict-slot, .empty-slot');
         slots.forEach(slot => {
-          slot.style.minHeight = slotHeight;
-          slot.style.height = slotHeight;
-          slot.style.padding = slotPadding;
+          slot.style.minHeight = `${baseSlotHeight}px`;
+          slot.style.height = `${baseSlotHeight}px`;
+          slot.style.padding = `${baseSlotPadding}px`;
           slot.style.boxSizing = 'border-box';
           slot.style.overflow = 'hidden';
         });
@@ -3756,14 +3805,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const periodLabels = clonedElement.querySelectorAll('.period-label');
         periodLabels.forEach(label => {
           label.style.width = periodColumnWidth;
-          label.style.height = slotHeight;
+          label.style.height = `${baseSlotHeight}px`;
           label.style.boxSizing = 'border-box';
         });
 
         // 動態調整字體大小
-        const nameFontSize = remainingRows <= 5 ? '18px' : remainingRows <= 7 ? '16px' : remainingRows <= 10 ? '15px' : '14px';
-        const infoFontSize = remainingRows <= 5 ? '15px' : remainingRows <= 7 ? '14px' : remainingRows <= 10 ? '13px' : '12px';
-        const headerFontSize = remainingRows <= 5 ? '18px' : remainingRows <= 7 ? '17px' : remainingRows <= 10 ? '16px' : '15px';
+        const baseNameFontSize = remainingRows <= 5 ? 21 : remainingRows <= 7 ? 18 : remainingRows <= 10 ? 16 : 15;
+        const baseInfoFontSize = remainingRows <= 5 ? 15 : remainingRows <= 7 ? 14 : remainingRows <= 10 ? 13 : 12;
+        const baseHeaderFontSize = remainingRows <= 5 ? 18 : remainingRows <= 7 ? 17 : remainingRows <= 10 ? 16 : 15;
+        const dayColumns = Math.max(1, totalColumns - 1);
+        const columnScale = Math.min(1.22, Math.max(0.85, 7 / dayColumns));
+        const nameFontSize = `${Math.round(baseNameFontSize * columnScale)}px`;
+        const infoFontSize = `${Math.round(baseInfoFontSize * columnScale)}px`;
+        const headerFontSize = `${Math.round(baseHeaderFontSize * columnScale)}px`;
 
         const names = clonedElement.querySelectorAll('.slot-course-name');
         names.forEach(name => {
@@ -3795,6 +3849,22 @@ document.addEventListener('DOMContentLoaded', function() {
           header.style.padding = '10px 8px';
           header.style.fontWeight = '700';
         });
+
+        tableContext = {
+          table,
+          slots,
+          periodLabels,
+          names,
+          infos,
+          headers,
+          remainingRows,
+          baseSlotHeight,
+          baseSlotPadding,
+          baseNameFontSize,
+          baseInfoFontSize,
+          baseHeaderFontSize,
+          columnScale
+        };
       }
 
       // 如果是清單式課表，調整樣式
@@ -3868,26 +3938,75 @@ document.addEventListener('DOMContentLoaded', function() {
 
       contentWrapper.appendChild(clonedElement);
 
-      // 頁腳水印
-      const footer = document.createElement('div');
-      footer.style.cssText = `
-        margin-top: 16px;
-        padding-top: 12px;
-        border-top: 2px solid #f0f0f0;
-        text-align: center;
-        color: #999;
-        font-size: 11px;
-        flex-shrink: 0;
-      `;
-      footer.textContent = '© Generated by NYCU 選課助手';
-      contentWrapper.appendChild(footer);
-
       exportContainer.appendChild(contentWrapper);
 
       // 臨時添加到 body 中（在視窗外）
       exportContainer.style.position = 'absolute';
       exportContainer.style.left = '-9999px';
       document.body.appendChild(exportContainer);
+
+      const measuredHeight = exportContainer.scrollHeight;
+      let desiredHeight = Math.max(measuredHeight, A4_HEIGHT);
+      const desiredWidth = Math.round(desiredHeight / 1.414);
+      exportContainer.style.height = `${desiredHeight}px`;
+      exportContainer.style.width = `${desiredWidth}px`;
+      let contentHeight = Math.max(300, desiredHeight - (EXPORT_PADDING * 2));
+      contentWrapper.style.height = `${contentHeight}px`;
+
+      if (tableContext) {
+        const contentPadding = 32;
+        const availableHeight = Math.max(300, contentHeight - contentPadding * 2);
+        tableContext.table.style.height = `${availableHeight}px`;
+
+        const thead = tableContext.table.querySelector('thead');
+        const theadHeight = thead ? thead.offsetHeight : 0;
+        const spacing = 4;
+        const heightSafety = 24;
+        const totalRows = Math.max(1, tableContext.remainingRows);
+        const availableForRows = Math.max(
+          0,
+          availableHeight - theadHeight - spacing * (totalRows + 2) - heightSafety
+        );
+        const fitSlotHeight = Math.floor(availableForRows / totalRows);
+        const finalSlotHeight = Math.max(46, Math.min(tableContext.baseSlotHeight, fitSlotHeight));
+        const heightScale = finalSlotHeight / tableContext.baseSlotHeight;
+        const finalSlotPadding = Math.max(6, Math.round(tableContext.baseSlotPadding * heightScale));
+
+        tableContext.slots.forEach(slot => {
+          slot.style.minHeight = `${finalSlotHeight}px`;
+          slot.style.height = `${finalSlotHeight}px`;
+          slot.style.padding = `${finalSlotPadding}px`;
+        });
+
+        tableContext.periodLabels.forEach(label => {
+          label.style.height = `${finalSlotHeight}px`;
+        });
+
+        const nameFontSize = Math.round(tableContext.baseNameFontSize * tableContext.columnScale * heightScale);
+        const infoFontSize = Math.round(tableContext.baseInfoFontSize * tableContext.columnScale * heightScale);
+        const headerFontSize = Math.round(tableContext.baseHeaderFontSize * tableContext.columnScale * heightScale);
+
+        tableContext.names.forEach(name => {
+          name.style.fontSize = `${nameFontSize}px`;
+        });
+
+        tableContext.infos.forEach(info => {
+          info.style.fontSize = `${infoFontSize}px`;
+        });
+
+        tableContext.headers.forEach(headerCell => {
+          headerCell.style.fontSize = `${headerFontSize}px`;
+        });
+
+        const tableMeasuredHeight = tableContext.table.getBoundingClientRect().height;
+        const extraHeightNeeded = tableMeasuredHeight - availableHeight;
+        if (extraHeightNeeded > 0) {
+          desiredHeight += extraHeightNeeded + 12;
+          exportContainer.style.height = `${desiredHeight}px`;
+          contentHeight = Math.max(300, desiredHeight - (EXPORT_PADDING * 2));
+          contentWrapper.style.height = `${contentHeight}px`;
+        }
+      }
 
       // 使用 html2canvas 擷取
       const canvas = await html2canvas(exportContainer, {
@@ -3904,6 +4023,7 @@ document.addEventListener('DOMContentLoaded', function() {
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
+        const date = new Date();
         const exportDateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
         link.download = `NYCU課表_${exportDateStr}.png`;
         link.href = url;
@@ -4104,10 +4224,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
 
       if (result.courseData && Array.isArray(result.courseData)) {
-        const latestCourse = result.courseData.find(c =>
-          c.cos_id === course.cos_id ||
-          (c.code === course.code && c.name === course.name)
-        );
+        const latestCourse = findLatestCourse(course, result.courseData);
         if (latestCourse) {
           updatedCourse = { ...course, ...latestCourse };
         }
@@ -4155,10 +4272,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 載入課程詳細資訊（從 API）
-    const courseKey = getCourseKey(course);
+    const courseDetailsKey = getCourseDetailsKey(course);
     let detailsHtml = '';
 
-    if (!courseDetailsCache[courseKey]) {
+    if (!courseDetailsCache[courseDetailsKey] || isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
       try {
         if (course.cos_id && course.acy && course.sem) {
           // ⭐ 使用正確的 API endpoint（POST 方法）
@@ -4215,7 +4332,8 @@ document.addEventListener('DOMContentLoaded', function() {
             details.searchKeywords = details['課程概述'];
           }
 
-          courseDetailsCache[courseKey] = details;
+          details._partial = false;
+          courseDetailsCache[courseDetailsKey] = details;
           saveCourseDetailsCache(); // 儲存到本地
         }
       } catch (error) {
@@ -4223,11 +4341,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    if (courseDetailsCache[courseKey]) {
+    if (courseDetailsCache[courseDetailsKey] && !isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
       detailsHtml = `
         <div class="detail-section">
           <h2 class="detail-section-title">📋 課程詳細資訊</h2>
-          ${displayCourseDetailsHTML(courseDetailsCache[courseKey])}
+          ${displayCourseDetailsHTML(courseDetailsCache[courseDetailsKey])}
         </div>
       `;
     }
@@ -4262,7 +4380,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ${course.cos_id && course.acy && course.sem ? `
           <button class="detail-outline-btn" id="detailOutlineBtn">📄 開啟課程綱要</button>
         ` : ''}
-        ${aiEnabled && courseDetailsCache[courseKey] && courseDetailsCache[courseKey]['課程概述'] && courseDetailsCache[courseKey]['課程概述'] !== '未提供' ? `
+        ${aiEnabled && courseDetailsCache[courseDetailsKey] && !isDetailsPartial(courseDetailsCache[courseDetailsKey]) && courseDetailsCache[courseDetailsKey]['課程概述'] && courseDetailsCache[courseDetailsKey]['課程概述'] !== '未提供' ? `
           <button class="detail-outline-btn" id="reextractKeywordsBtn" style="background: linear-gradient(135deg, #AB47BC 0%, #7E57C2 100%);">🔄 重新提取關鍵字</button>
         ` : ''}
       </div>
@@ -4289,7 +4407,7 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.textContent = '⏳ 提取中...';
           btn.style.cursor = 'not-allowed';
 
-          const details = courseDetailsCache[courseKey];
+          const details = courseDetailsCache[courseDetailsKey];
           if (details) {
             console.log(`🔄 重新從完整課程綱要提取關鍵字: ${course.name}`);
 
@@ -4298,7 +4416,7 @@ document.addEventListener('DOMContentLoaded', function() {
             details.searchKeywords = keywords;
 
             // 更新緩存
-            courseDetailsCache[courseKey] = details;
+            courseDetailsCache[courseDetailsKey] = details;
             saveCourseDetailsCache();
 
             console.log(`✅ [${course.name}] 關鍵字重新提取成功: ${keywords.substring(0, 150)}${keywords.length > 150 ? '...' : ''}`);
@@ -4688,6 +4806,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <label class="slot-filter-checkbox"><input type="checkbox" class="slot-filter-type" value="general"><span>通識</span></label>
               <label class="slot-filter-checkbox"><input type="checkbox" class="slot-filter-type" value="physical"><span>體育</span></label>
               <label class="slot-filter-checkbox"><input type="checkbox" class="slot-filter-type" value="language"><span>外語</span></label>
+              <label class="slot-filter-checkbox"><input type="checkbox" class="slot-filter-type" value="military"><span>軍訓</span></label>
             </div>
           </div>
           <div class="slot-filter-section">
@@ -4900,10 +5019,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let updatedCourse = course;
       try {
         if (result.courseData && Array.isArray(result.courseData)) {
-          const latestCourse = result.courseData.find(c =>
-            c.cos_id === course.cos_id ||
-            (c.code === course.code && c.name === course.name)
-          );
+          const latestCourse = findLatestCourse(course, result.courseData);
           if (latestCourse) {
             updatedCourse = { ...course, ...latestCourse };
           }
@@ -4936,9 +5052,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // 載入課程詳細資訊（從 API）
       const courseKey = getCourseKey(updatedCourse);
+      const courseDetailsKey = getCourseDetailsKey(updatedCourse);
       let detailsHtml = '';
 
-      if (!courseDetailsCache[courseKey]) {
+      if (!courseDetailsCache[courseDetailsKey] || isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
         try {
           if (updatedCourse.cos_id && updatedCourse.acy && updatedCourse.sem) {
             const params = new URLSearchParams({
@@ -4972,7 +5089,8 @@ document.addEventListener('DOMContentLoaded', function() {
               const descData = await descResponse.json();
               const details = extractCourseDetailsFromAPI(baseData, descData, updatedCourse);
               if (details) {
-                courseDetailsCache[courseKey] = details;
+                details._partial = false;
+                courseDetailsCache[courseDetailsKey] = details;
                 saveCourseDetailsCache();
               }
             }
@@ -4982,11 +5100,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      if (courseDetailsCache[courseKey]) {
+      if (courseDetailsCache[courseDetailsKey] && !isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
         detailsHtml = `
           <div class="detail-section">
             <h2 class="detail-section-title">📋 課程詳細資訊</h2>
-            ${displayCourseDetailsHTML(courseDetailsCache[courseKey])}
+            ${displayCourseDetailsHTML(courseDetailsCache[courseDetailsKey])}
           </div>
         `;
       }
@@ -5149,10 +5267,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
 
       if (result.courseData && Array.isArray(result.courseData)) {
-        const latestCourse = result.courseData.find(c =>
-          c.cos_id === course.cos_id ||
-          (c.code === course.code && c.name === course.name)
-        );
+        const latestCourse = findLatestCourse(course, result.courseData);
         if (latestCourse) {
           // 合併最新資料到課程物件中（保留原有資料，只補充缺失的欄位）
           updatedCourse = { ...course, ...latestCourse };
@@ -5202,11 +5317,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 載入課程詳細資訊（使用更新後的課程資料）
-    const courseKey = getCourseKey(updatedCourse);
+    const courseDetailsKey = getCourseDetailsKey(updatedCourse);
     const bodyDiv = modal.querySelector('.course-modal-body');
 
     // 檢查快取
-    if (!courseDetailsCache[courseKey]) {
+    if (!courseDetailsCache[courseDetailsKey] || isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
       try {
         if (updatedCourse.cos_id && updatedCourse.acy && updatedCourse.sem) {
           // ⭐ 使用正確的 API endpoint（POST 方法）
@@ -5258,7 +5373,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }
 
-          courseDetailsCache[courseKey] = details;
+          details._partial = false;
+          courseDetailsCache[courseDetailsKey] = details;
           saveCourseDetailsCache(); // 儲存到本地
         }
       } catch (error) {
@@ -5274,13 +5390,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 顯示資訊
-    if (courseDetailsCache[courseKey]) {
-      const details = courseDetailsCache[courseKey];
+    if (courseDetailsCache[courseDetailsKey] && !isDetailsPartial(courseDetailsCache[courseDetailsKey])) {
+      const details = courseDetailsCache[courseDetailsKey];
 
       // 如果 updatedCourse 有 memo 但快取中的備註是「未提供」，更新快取
       if (updatedCourse.memo && details.備註 === '未提供') {
         details.備註 = updatedCourse.memo;
-        courseDetailsCache[courseKey] = details;
+        courseDetailsCache[courseDetailsKey] = details;
         saveCourseDetailsCache();
       }
 
@@ -5442,11 +5558,21 @@ document.addEventListener('DOMContentLoaded', function() {
   const copyLog = document.getElementById('copyLog');
 
   const enableAI = document.getElementById('enableAI');
+  const billingLinked = document.getElementById('billingLinked');
   const aiSettings = document.getElementById('aiSettings');
   const geminiSettings = document.getElementById('geminiSettings');
+  const geminiKeyInput = document.getElementById('geminiKey');
 
   const aiStatus = document.getElementById('aiStatus');
   const testAIBtn = document.getElementById('testAIBtn');
+  const openAIGuide = document.getElementById('openAIGuide');
+  const aiGuideModal = document.getElementById('aiGuideModal');
+  const closeAIGuide = document.getElementById('closeAIGuide');
+  const aiGuideStepTitle = document.getElementById('aiGuideStepTitle');
+  const aiGuideStepDesc = document.getElementById('aiGuideStepDesc');
+  const aiGuideStepStatus = document.getElementById('aiGuideStepStatus');
+  const aiGuidePrev = document.getElementById('aiGuidePrev');
+  const aiGuideNext = document.getElementById('aiGuideNext');
 
   // 特殊指令相關元素
   const specialCommandsBar = document.getElementById('specialCommandsBar');
@@ -5499,6 +5625,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // AI 狀態
   let aiEnabled = false;
+  let aiBillingLinked = true;
+  let aiGuideStep = 1;
   let aiConfig = {
     provider: 'gemini',  // 固定使用 Gemini
     useDynamicPrompt: true,  // 是否使用 AI 動態生成 Prompt（Step 0.5）
@@ -5511,69 +5639,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 載入設置
   function loadAISettings() {
-    chrome.storage.local.get(['aiEnabled', 'aiConfig'], (result) => {
+    chrome.storage.local.get(['aiEnabled', 'aiConfig', 'aiBillingLinked'], (result) => {
       console.log('[loadAISettings] 載入設定中...', result);
 
       if (result.aiEnabled !== undefined) {
         aiEnabled = result.aiEnabled;
         enableAI.checked = aiEnabled;
         console.log('[loadAISettings] AI enabled:', aiEnabled);
+      }
 
-        if (aiEnabled) {
-          console.log('[loadAISettings] AI 已啟用，開始顯示 UI 元素');
-          aiSearchToggle.style.display = 'flex';
+      aiBillingLinked = true;
+      if (billingLinked) {
+        billingLinked.checked = true;
+      }
+
+      if (aiEnabled) {
+        console.log('[loadAISettings] AI 已啟用，開始顯示 UI 元素');
+        aiSearchToggle.style.display = 'flex';
+        if (aiSettings) {
           aiSettings.style.display = 'block';
-          // 自動開啟 AI 搜尋按鈕
-          aiSearchToggle.classList.add('active');
-          const aiStatusElement = aiSearchToggle.querySelector('.ai-status');
-          if (aiStatusElement) {
-            aiStatusElement.textContent = 'ON';
-          }
-          // 同時顯示模式選擇器
-          console.log('[loadAISettings] 嘗試顯示模式選擇器...');
-          const aiModeSelector = document.getElementById('aiModeSelector');
-          console.log('[loadAISettings] aiModeSelector 元素:', aiModeSelector);
-          if (aiModeSelector) {
-            console.log('[loadAISettings] 設置 aiModeSelector display = flex');
-            aiModeSelector.style.display = 'flex';
-            // 強制重新渲染
-            aiModeSelector.style.visibility = 'visible';
-            aiModeSelector.style.opacity = '1';
-            console.log('[loadAISettings] 最終 aiModeSelector.style.display:', aiModeSelector.style.display);
-          } else {
-            console.error('[loadAISettings] 找不到 aiModeSelector 元素！');
-          }
-          // 同時顯示特殊指令按鈕欄
-          if (specialCommandsBar) {
-            specialCommandsBar.style.display = 'block';
-          }
-          // 隱藏智能搜尋提示（AI 模式下不需要）
-          const searchHint = document.querySelector('.search-hint');
-          if (searchHint) {
-            searchHint.style.display = 'none';
-          }
+        }
+        // 自動開啟 AI 搜尋按鈕
+        aiSearchToggle.classList.add('active');
+        const aiStatusElement = aiSearchToggle.querySelector('.ai-status');
+        if (aiStatusElement) {
+          aiStatusElement.textContent = 'ON';
+        }
+        // 同時顯示模式選擇器
+        console.log('[loadAISettings] 嘗試顯示模式選擇器...');
+        const aiModeSelector = document.getElementById('aiModeSelector');
+        console.log('[loadAISettings] aiModeSelector 元素:', aiModeSelector);
+        if (aiModeSelector) {
+          console.log('[loadAISettings] 設置 aiModeSelector display = flex');
+          aiModeSelector.style.display = 'flex';
+          // 強制重新渲染
+          aiModeSelector.style.visibility = 'visible';
+          aiModeSelector.style.opacity = '1';
+          console.log('[loadAISettings] 最終 aiModeSelector.style.display:', aiModeSelector.style.display);
         } else {
-          console.log('[loadAISettings] AI 未啟用，隱藏 UI 元素');
-          aiSearchToggle.style.display = 'none';
-          aiSearchToggle.classList.remove('active');
-          // 隱藏模式選擇器
-          const aiModeSelector = document.getElementById('aiModeSelector');
-          if (aiModeSelector) {
-            aiModeSelector.style.display = 'none';
-          }
-          // 隱藏特殊指令按鈕欄
-          if (specialCommandsBar) {
-            specialCommandsBar.style.display = 'none';
-          }
-          // 顯示智能搜尋提示（非 AI 模式下需要）
-          const searchHint = document.querySelector('.search-hint');
-          if (searchHint) {
-            searchHint.style.display = 'block';
-          }
+          console.error('[loadAISettings] 找不到 aiModeSelector 元素！');
+        }
+        // 同時顯示特殊指令按鈕欄
+        if (specialCommandsBar) {
+          specialCommandsBar.style.display = 'block';
+        }
+        // 隱藏智能搜尋提示（AI 模式下不需要）
+        const searchHint = document.querySelector('.search-hint');
+        if (searchHint) {
+          searchHint.style.display = 'none';
+        }
+      } else {
+        console.log('[loadAISettings] AI 未啟用，隱藏 UI 元素');
+        aiSearchToggle.style.display = 'none';
+        aiSearchToggle.classList.remove('active');
+        // 隱藏模式選擇器
+        const aiModeSelector = document.getElementById('aiModeSelector');
+        if (aiModeSelector) {
+          aiModeSelector.style.display = 'none';
+        }
+        // 隱藏特殊指令按鈕欄
+        if (specialCommandsBar) {
+          specialCommandsBar.style.display = 'none';
+        }
+        // 顯示智能搜尋提示（非 AI 模式下需要）
+        const searchHint = document.querySelector('.search-hint');
+        if (searchHint) {
+          searchHint.style.display = 'block';
         }
       }
 
       console.log('[loadAISettings] 設定載入完成');
+      updateAIActionsState();
 
       if (result.aiConfig) {
         aiConfig = { ...aiConfig, ...result.aiConfig };
@@ -5586,8 +5722,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 更新 Gemini UI
         if (aiConfig.gemini) {
-          document.getElementById('geminiKey').value = aiConfig.gemini.key || '';
-          document.getElementById('geminiModel').value = aiConfig.gemini.model;
+          if (geminiKeyInput) {
+            geminiKeyInput.value = aiConfig.gemini.key || '';
+          }
+          const geminiModelSelect = document.getElementById('geminiModel');
+          if (geminiModelSelect) {
+            geminiModelSelect.value = aiConfig.gemini.model;
+          }
         }
 
         // Gemini settings 永遠顯示（不需要切換）
@@ -5616,16 +5757,316 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  function updateAIActionsState() {
+    const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+    const guideBillingCheckbox = document.getElementById('aiGuideBillingLinked');
+
+    if (guideKeyInput && geminiKeyInput && !geminiKeyInput.value.trim() && guideKeyInput.value.trim()) {
+      geminiKeyInput.value = guideKeyInput.value;
+    }
+    if (guideKeyInput && geminiKeyInput && guideKeyInput.value !== geminiKeyInput.value) {
+      guideKeyInput.value = geminiKeyInput.value;
+    }
+    if (guideBillingCheckbox && billingLinked) {
+      billingLinked.checked = guideBillingCheckbox.checked;
+    }
+
+    const keyValue = (geminiKeyInput && geminiKeyInput.value.trim())
+      || (guideKeyInput && guideKeyInput.value.trim())
+      || '';
+    const hasKey = keyValue.length > 0;
+    const billingOk = true;
+    aiBillingLinked = true;
+    const canUseAI = hasKey;
+    if (testAIBtn) {
+      testAIBtn.disabled = !canUseAI;
+      testAIBtn.title = canUseAI ? '測試連接' : '完成步驟一後才能測試';
+    }
+    if (saveSettings) {
+      saveSettings.disabled = !canUseAI;
+      saveSettings.title = canUseAI ? '儲存設定' : '完成步驟一後才能儲存';
+    }
+    if (aiGuideModal && aiGuideModal.style.display === 'flex') {
+      updateAIGuideStatusOnly();
+    }
+  }
+
+  function updateAIGuideStatusOnly() {
+    if (!aiGuideModal || aiGuideModal.style.display !== 'flex') {
+      return;
+    }
+    const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+    const guideBillingCheckbox = document.getElementById('aiGuideBillingLinked');
+    const hasKey = !!((geminiKeyInput && geminiKeyInput.value.trim())
+      || (guideKeyInput && guideKeyInput.value.trim())
+      || (aiConfig.gemini && aiConfig.gemini.key));
+    const billingOk = true;
+    const canUseAI = hasKey;
+
+    if (aiGuideStep === 1) {
+      const keyStatus = document.getElementById('aiGuideKeyStatus');
+      if (keyStatus) {
+        keyStatus.textContent = hasKey ? '已填寫' : '尚未填寫';
+        keyStatus.className = `guide-status ${hasKey ? 'ok' : 'warn'}`;
+      }
+      if (aiGuideNext) {
+        aiGuideNext.disabled = !hasKey;
+      }
+    } else if (aiGuideStep === 2) {
+      const billingStatus = document.getElementById('aiGuideBillingStatus');
+      if (billingStatus) {
+        billingStatus.textContent = billingOk ? '已連結' : '尚未連結';
+        billingStatus.className = `guide-status ${billingOk ? 'ok' : 'warn'}`;
+      }
+      if (aiGuideNext) {
+        aiGuideNext.disabled = !billingOk;
+      }
+    } else {
+      const readyStatus = document.getElementById('aiGuideReadyStatus');
+      if (readyStatus) {
+        readyStatus.textContent = canUseAI ? '可測試/儲存' : '尚未完成步驟 1';
+        readyStatus.className = `guide-status ${canUseAI ? 'ok' : 'warn'}`;
+      }
+      if (aiGuideNext) {
+        aiGuideNext.disabled = !canUseAI;
+      }
+      const guideTestBtn = document.getElementById('aiGuideTestBtn');
+      const guideSaveBtn = document.getElementById('aiGuideSaveBtn');
+      if (guideTestBtn) {
+        guideTestBtn.disabled = !canUseAI;
+      }
+      if (guideSaveBtn) {
+        guideSaveBtn.disabled = !canUseAI;
+      }
+    }
+  }
+
+  function updateAIGuideModal() {
+    if (!aiGuideStepTitle || !aiGuideStepDesc || !aiGuideStepStatus || !aiGuideNext || !aiGuidePrev) {
+      return;
+    }
+    const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+    const guideBillingCheckbox = document.getElementById('aiGuideBillingLinked');
+    const hasKey = !!((geminiKeyInput && geminiKeyInput.value.trim())
+      || (guideKeyInput && guideKeyInput.value.trim())
+      || (aiConfig.gemini && aiConfig.gemini.key));
+    const billingOk = true;
+    const canUseAI = hasKey;
+
+    if (aiGuideStep === 1) {
+      aiGuideStepTitle.textContent = '步驟一：填入 Gemini API Key';
+      aiGuideStepDesc.innerHTML = `
+        <strong>📝 步驟一：申請 Google Gemini API 金鑰</strong><br>
+        1. 訪問 <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio API Keys</a>（https://aistudio.google.com/apikey）<br>
+        2. 點擊「Create API key」→ 選擇或建立一個專案<br>
+        3. 複製顯示的 API 金鑰（格式：AIzaSy... 開頭，39 個字元）<br>
+        4. 將金鑰貼到下方的「Gemini API Key」輸入框中
+        <div class="guide-form">
+          <label class="setting-label">
+            <input type="checkbox" id="aiGuideEnableAI">
+            <span>啟用 AI 搜尋</span>
+          </label>
+          <label class="setting-label-block">
+            <span>Gemini API Key</span>
+            <input type="password" id="aiGuideGeminiKey" class="setting-input" placeholder="AIza...">
+          </label>
+          <div class="api-key-security-note">
+            🔒 API Key 僅儲存在本機瀏覽器中，不會上傳至任何伺服器
+          </div>
+        </div>
+      `;
+      aiGuideStepStatus.innerHTML = `
+        <div class="guide-status-item">API Key：<span id="aiGuideKeyStatus" class="guide-status ${hasKey ? 'ok' : 'warn'}">${hasKey ? '已填寫' : '尚未填寫'}</span></div>
+      `;
+      aiGuidePrev.style.display = 'none';
+      aiGuideNext.textContent = '下一步';
+      aiGuideNext.disabled = !hasKey;
+
+      const guideEnableAI = document.getElementById('aiGuideEnableAI');
+      if (guideEnableAI) {
+        guideEnableAI.checked = !!(enableAI && enableAI.checked);
+        guideEnableAI.addEventListener('change', () => {
+          if (enableAI) {
+            enableAI.checked = guideEnableAI.checked;
+          }
+          if (aiSettings) {
+            aiSettings.style.display = guideEnableAI.checked ? 'block' : 'none';
+          }
+          if (guideEnableAI.checked && geminiSettings) {
+            geminiSettings.style.display = 'block';
+          }
+          updateAIActionsState();
+        });
+      }
+      const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+      if (guideKeyInput) {
+        guideKeyInput.value = (geminiKeyInput && geminiKeyInput.value)
+          || (aiConfig.gemini && aiConfig.gemini.key)
+          || '';
+        guideKeyInput.addEventListener('input', () => {
+          if (geminiKeyInput) {
+            geminiKeyInput.value = guideKeyInput.value;
+          }
+          updateAIActionsState();
+        });
+      }
+    } else if (aiGuideStep === 2) {
+      aiGuideStepTitle.textContent = '步驟二：確認已連結帳單';
+      aiGuideStepDesc.innerHTML = `
+        <strong style="color: #ff5722;">⚠️ 步驟二：連結帳單帳戶（重要！）</strong><br>
+        <div style="background-color: #fff3e0; padding: 12px; border-radius: 6px; margin: 8px 0; border-left: 4px solid #ff9800;">
+          <strong>為什麼需要連結帳單帳戶？</strong><br>
+          <table style="width: 100%; margin-top: 8px; font-size: 12px; border-collapse: collapse;">
+            <tr style="background-color: #f5f5f5;">
+              <th style="padding: 6px; text-align: left; border: 1px solid #ddd;">項目</th>
+              <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">未連結帳單</th>
+              <th style="padding: 6px; text-align: center; border: 1px solid #ddd; background-color: #e8f5e9;">已連結帳單</th>
+            </tr>
+            <tr>
+              <td style="padding: 6px; border: 1px solid #ddd;">每分鐘請求數（RPM）</td>
+              <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #f44336;"><strong>15</strong></td>
+              <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #4caf50;"><strong>1,000</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 6px; border: 1px solid #ddd;">每天 Token 額度</td>
+              <td style="padding: 6px; text-align: center; border: 1px solid #ddd;">有限</td>
+              <td style="padding: 6px; text-align: center; border: 1px solid #ddd; color: #4caf50;">1,500,000</td>
+            </tr>
+          </table>
+          <div style="margin-top: 8px; font-size: 12px;">
+            💳 <strong>不用擔心費用：</strong>Google 提供 $300 美元免費試用額度，<span style="color: #4caf50; font-weight: bold;">不會自動扣款</span>！<br>
+            💰 <strong>實際費用：</strong>Gemini 2.5 Flash 完全免費！
+          </div>
+        </div>
+
+        <strong>如何連結帳單帳戶：</strong><br>
+        <div style="margin-left: 12px; font-size: 12px;">
+          <strong>方法一：通過 Google AI Studio</strong><br>
+          1. 在 <a href="https://aistudio.google.com/" target="_blank" style="color: #7c4dff;">Google AI Studio</a> 頁面，點擊「Billing」或「View your billing account」<br>
+          2. 點擊「Link a billing account」<br>
+          3. 如果沒有帳單帳戶，點擊「Create billing account」<br>
+          4. 填寫國家、帳戶名稱、幣別<br>
+          5. 輸入信用卡資訊（會先扣 $1 驗證，稍後退回）<br>
+          6. 點擊「Submit」完成<br><br>
+
+          <strong>方法二：直接到 Google Cloud Console</strong><br>
+          1. 訪問 <a href="https://console.cloud.google.com/billing" target="_blank" style="color: #7c4dff;">Google Cloud Console - Billing</a><br>
+          2. 點擊「Create account」建立帳單帳戶<br>
+          3. 按照上述步驟 4-6 完成設定<br>
+          4. 回到 AI Studio，選擇剛建立的帳單帳戶連結
+        </div>
+
+        <strong>💰 費用與額度說明</strong><br>
+        • Gemini 2.5 Flash：完全免費（推薦使用）<br>
+        • AI 搜尋：每次約 500-2000 tokens<br>
+        • 關鍵字學習：3,000 門課 × 1,000 tokens = 一次性<br>
+        • 即使連結帳單，也不會扣款（因為使用免費模型）<br>
+        • 每月使用成本：$0 元（100% 免費）<br><br>
+
+        <strong>❓ 常見問題</strong><br>
+        Q: AI 搜尋時出現「Resource has been exhausted」錯誤？<br>
+        A: 這表示 API 請求額度用盡。請立即連結帳單帳戶，額度會從 15 RPM 提升到 1,000 RPM。<br><br>
+
+        Q: 連結帳單會被扣款嗎？<br>
+        A: 不會！使用 Gemini 2.5 Flash 完全免費，且 Google 提供 $300 試用額度，不會自動扣款。<br><br>
+
+        Q: 如何確認帳單已連結？<br>
+        A: 在 Google Cloud Console - Billing 查看，專案旁應顯示「Billing account linked」。<br><br>
+
+        Q: 為什麼建議連結帳單帳戶？<br>
+        A: 未連結時每分鐘只能請求 15 次，關鍵字學習功能會非常慢。連結後可達 1,000 次/分鐘，大幅加速學習過程。<br>
+        <div class="guide-form">
+          <label class="setting-label">
+            <input type="checkbox" id="aiGuideBillingLinked">
+            <span>已連結 Google 帳單帳戶（未連結將無法使用 AI）</span>
+          </label>
+        </div>
+      `;
+      aiGuideStepStatus.innerHTML = `
+        <div class="guide-status-item">帳單連結：<span id="aiGuideBillingStatus" class="guide-status ${billingOk ? 'ok' : 'warn'}">${billingOk ? '已連結' : '尚未連結'}</span></div>
+      `;
+      aiGuidePrev.style.display = 'inline-block';
+      aiGuideNext.textContent = '完成';
+      aiGuideNext.disabled = !billingOk;
+
+      const guideBillingCheckbox = document.getElementById('aiGuideBillingLinked');
+      if (guideBillingCheckbox) {
+        guideBillingCheckbox.checked = true;
+        guideBillingCheckbox.addEventListener('change', () => {
+          if (billingLinked) {
+            billingLinked.checked = guideBillingCheckbox.checked;
+          }
+          aiBillingLinked = guideBillingCheckbox.checked;
+          updateAIActionsState();
+        });
+      }
+    } else {
+      aiGuideStepTitle.textContent = '步驟三：測試與儲存';
+      aiGuideStepDesc.textContent = '完成測試連接後，儲存設定即可開始使用 AI 搜尋。';
+      aiGuideStepStatus.innerHTML = `
+        <div class="guide-status-item">準備狀態：<span id="aiGuideReadyStatus" class="guide-status ${canUseAI ? 'ok' : 'warn'}">${canUseAI ? '可測試/儲存' : '尚未完成步驟 1'}</span></div>
+        <div class="guide-status-item">測試結果：<span id="aiGuideTestStatus" class="guide-status">尚未測試</span></div>
+        <div class="guide-actions">
+          <button id="aiGuideTestBtn" class="btn-secondary">測試連接</button>
+          <button id="aiGuideSaveBtn" class="btn-primary">儲存設定</button>
+        </div>
+      `;
+      aiGuidePrev.style.display = 'inline-block';
+      aiGuideNext.textContent = '完成';
+      aiGuideNext.disabled = !canUseAI;
+
+      const guideTestBtn = document.getElementById('aiGuideTestBtn');
+      const guideSaveBtn = document.getElementById('aiGuideSaveBtn');
+      if (guideTestBtn) {
+        guideTestBtn.disabled = !canUseAI;
+        guideTestBtn.addEventListener('click', () => {
+          runAITestConnection();
+        });
+      }
+      if (guideSaveBtn) {
+        guideSaveBtn.disabled = !canUseAI;
+        guideSaveBtn.addEventListener('click', () => {
+          if (saveSettings && !saveSettings.disabled) {
+            saveSettings.click();
+          }
+        });
+      }
+    }
+  }
+
+  function openAIGuideModal() {
+    if (!aiGuideModal) return;
+    aiGuideStep = 1;
+    updateAIGuideModal();
+    aiGuideModal.style.display = 'flex';
+  }
+
+  function closeAIGuideModal() {
+    if (aiGuideModal) {
+      aiGuideModal.style.display = 'none';
+    }
+  }
+
   // 儲存設置
   function saveAISettings() {
     aiEnabled = enableAI.checked;
+    const guideBillingCheckbox = document.getElementById('aiGuideBillingLinked');
+    aiBillingLinked = true;
 
     // 使用 Gemini（使用者選擇的模型）
     aiConfig.provider = 'gemini';
-    aiConfig.gemini.key = document.getElementById('geminiKey').value;
-    aiConfig.gemini.model = document.getElementById('geminiModel').value;
+    const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+    const keyValue = (geminiKeyInput && geminiKeyInput.value)
+      || (guideKeyInput && guideKeyInput.value)
+      || aiConfig.gemini.key
+      || '';
+    aiConfig.gemini.key = keyValue;
+    const geminiModelSelect = document.getElementById('geminiModel');
+    aiConfig.gemini.model = (geminiModelSelect && geminiModelSelect.value)
+      || aiConfig.gemini.model
+      || 'gemini-2.5-flash-lite';
 
-    chrome.storage.local.set({ aiEnabled, aiConfig }, () => {
+    chrome.storage.local.set({ aiEnabled, aiConfig, aiBillingLinked }, () => {
       console.log('AI 設置已儲存:', aiConfig);
 
       // 更新 AI 切換按鈕顯示
@@ -5658,6 +6099,39 @@ document.addEventListener('DOMContentLoaded', function() {
       settingsModal.style.display = 'none';
     }
   });
+
+  if (openAIGuide) {
+    openAIGuide.addEventListener('click', openAIGuideModal);
+  }
+  if (closeAIGuide) {
+    closeAIGuide.addEventListener('click', closeAIGuideModal);
+  }
+  if (aiGuideModal) {
+    aiGuideModal.addEventListener('click', (e) => {
+      if (e.target === aiGuideModal) {
+        closeAIGuideModal();
+      }
+    });
+  }
+  if (aiGuidePrev) {
+    aiGuidePrev.addEventListener('click', () => {
+      aiGuideStep = 1;
+      updateAIGuideModal();
+    });
+  }
+  if (aiGuideNext) {
+    aiGuideNext.addEventListener('click', () => {
+      if (aiGuideStep === 1) {
+        aiGuideStep = 2;
+        updateAIGuideModal();
+      } else if (aiGuideStep === 2) {
+        aiGuideStep = 3;
+        updateAIGuideModal();
+      } else {
+        closeAIGuideModal();
+      }
+    });
+  }
 
   saveSettings.addEventListener('click', saveAISettings);
 
@@ -5741,12 +6215,95 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   enableAI.addEventListener('change', () => {
-    aiSettings.style.display = enableAI.checked ? 'block' : 'none';
+    if (aiSettings) {
+      aiSettings.style.display = enableAI.checked ? 'block' : 'none';
+    }
     // Gemini settings 永遠顯示
     if (enableAI.checked && geminiSettings) {
       geminiSettings.style.display = 'block';
     }
+    updateAIActionsState();
+    if (enableAI.checked) {
+      openAIGuideModal();
+    } else {
+      closeAIGuideModal();
+    }
   });
+
+  if (billingLinked) {
+    billingLinked.addEventListener('change', () => {
+      aiBillingLinked = billingLinked.checked;
+      updateAIActionsState();
+    });
+  }
+
+  if (geminiKeyInput) {
+    geminiKeyInput.addEventListener('input', updateAIActionsState);
+  }
+
+  async function runAITestConnection() {
+    if (testAIBtn) {
+      testAIBtn.disabled = true;
+      testAIBtn.textContent = '測試中...';
+    }
+    const guideTestBtn = document.getElementById('aiGuideTestBtn');
+    const guideTestStatus = document.getElementById('aiGuideTestStatus');
+    if (guideTestBtn) {
+      guideTestBtn.disabled = true;
+      guideTestBtn.textContent = '測試中...';
+    }
+    if (guideTestStatus) {
+      guideTestStatus.textContent = '測試結果：測試中...';
+      guideTestStatus.className = 'guide-status warn';
+    }
+
+    if (aiStatus) {
+      aiStatus.className = 'ollama-status checking';
+      aiStatus.innerHTML = '<span class="status-icon">⏳</span><span class="status-text">檢測中...</span>';
+    }
+
+    try {
+      const isConnected = await testAIConnection();
+
+      if (isConnected) {
+        if (aiStatus) {
+          aiStatus.className = 'ollama-status connected';
+          aiStatus.innerHTML = '<span class="status-icon">✅</span><span class="status-text">連接成功</span>';
+        }
+        if (guideTestStatus) {
+          guideTestStatus.textContent = '測試結果：連接成功';
+          guideTestStatus.className = 'guide-status ok';
+        }
+      } else {
+        if (aiStatus) {
+          aiStatus.className = 'ollama-status disconnected';
+          aiStatus.innerHTML = '<span class="status-icon">❌</span><span class="status-text">連接失敗</span>';
+        }
+        if (guideTestStatus) {
+          guideTestStatus.textContent = '測試結果：連接失敗';
+          guideTestStatus.className = 'guide-status warn';
+        }
+      }
+    } catch (error) {
+      if (aiStatus) {
+        aiStatus.className = 'ollama-status disconnected';
+        aiStatus.innerHTML = '<span class="status-icon">❌</span><span class="status-text">連接失敗：' + error.message + '</span>';
+      }
+      if (guideTestStatus) {
+        guideTestStatus.textContent = `測試結果：連接失敗（${error.message}）`;
+        guideTestStatus.className = 'guide-status warn';
+      }
+    }
+
+    if (testAIBtn) {
+      testAIBtn.disabled = false;
+      testAIBtn.textContent = '測試連接';
+    }
+    if (guideTestBtn) {
+      guideTestBtn.disabled = false;
+      guideTestBtn.textContent = '測試連接';
+    }
+  }
 
   // AI 切換按鈕
   aiSearchToggle.addEventListener('click', () => {
@@ -5776,31 +6333,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // 測試連接
-  testAIBtn.addEventListener('click', async () => {
-    testAIBtn.disabled = true;
-    testAIBtn.textContent = '測試中...';
-
-    aiStatus.className = 'ollama-status checking';
-    aiStatus.innerHTML = '<span class="status-icon">⏳</span><span class="status-text">檢測中...</span>';
-
-    try {
-      const isConnected = await testAIConnection();
-
-      if (isConnected) {
-        aiStatus.className = 'ollama-status connected';
-        aiStatus.innerHTML = '<span class="status-icon">✅</span><span class="status-text">連接成功</span>';
-      } else {
-        aiStatus.className = 'ollama-status disconnected';
-        aiStatus.innerHTML = '<span class="status-icon">❌</span><span class="status-text">連接失敗</span>';
-      }
-    } catch (error) {
-      aiStatus.className = 'ollama-status disconnected';
-      aiStatus.innerHTML = '<span class="status-icon">❌</span><span class="status-text">連接失敗：' + error.message + '</span>';
-    }
-
-    testAIBtn.disabled = false;
-    testAIBtn.textContent = '測試連接';
-  });
+  if (testAIBtn) {
+    testAIBtn.addEventListener('click', async () => {
+      await runAITestConnection();
+    });
+  }
 
   // 特殊指令收合/展開
   function toggleSpecialCommandsPanel() {
@@ -5902,14 +6439,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 測試 Gemini 連接
   async function testGeminiConnection() {
-    const key = document.getElementById('geminiKey').value;
+    const guideKeyInput = document.getElementById('aiGuideGeminiKey');
+    const key = (geminiKeyInput && geminiKeyInput.value)
+      || (guideKeyInput && guideKeyInput.value)
+      || aiConfig.gemini.key
+      || '';
 
     if (!key) {
       throw new Error('請輸入 API Key');
     }
 
     try {
-      const model = document.getElementById('geminiModel').value;
+      const geminiModelSelect = document.getElementById('geminiModel');
+      const model = (geminiModelSelect && geminiModelSelect.value)
+        || aiConfig.gemini.model
+        || 'gemini-2.5-flash-lite';
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
         method: 'POST',
         headers: {
@@ -6410,8 +6954,8 @@ document.addEventListener('DOMContentLoaded', function() {
         ).join('; ');
 
         // 獲取課程提取的關鍵字（包含先修科目、評量方式、教學方法等）
-        const courseKey = getCourseKey(c);
-        const courseDetails = courseDetailsCache[courseKey];
+        const courseDetailsKey = getCourseDetailsKey(c);
+        const courseDetails = courseDetailsCache[courseDetailsKey];
         const keywords = courseDetails && courseDetails.searchKeywords ? courseDetails.searchKeywords : '';
 
         const parts = [
@@ -6780,7 +7324,7 @@ ${courseList}
       let emptyKeywordCount = 0;
 
       allCourses.forEach(course => {
-        const cacheKey = course.cos_id || course.code;
+        const cacheKey = getCourseDetailsKey(course);
         if (cacheKey && courseDetailsCache[cacheKey]) {
           // 修正：快取中的屬性名稱是 searchKeywords，而不是 keywords
           if (courseDetailsCache[cacheKey].searchKeywords) {
@@ -9328,8 +9872,8 @@ ${outlineContent}
 
     // 過濾出尚未提取過關鍵字的課程
     const coursesToProcess = courses.filter(course => {
-      const courseKey = getCourseKey(course);
-      const cached = courseDetailsCache[courseKey];
+      const courseDetailsKey = getCourseDetailsKey(course);
+      const cached = courseDetailsCache[courseDetailsKey];
       // 如果沒有緩存，或者沒有 searchKeywords 屬性（使用 hasOwnProperty 檢查，即使是空字串也算已提取）
       return !cached || !cached.hasOwnProperty('searchKeywords');
     });
@@ -9445,21 +9989,22 @@ ${outlineContent}
         const details = extractCourseDetailsFromAPI(baseData, descData, course);
 
         // 從完整課程綱要提取關鍵字
-        const courseKey = getCourseKey(course);
+        const courseDetailsKey = getCourseDetailsKey(course);
         if (details) {
           const keywords = await extractKeywordsFromOutline(details, course.name);
           details.searchKeywords = keywords;
+          details._partial = false;
           if (keywords && keywords.length > 0) {
             console.log(`✅ [${course.name}] 關鍵字提取成功: ${keywords.substring(0, 150)}${keywords.length > 150 ? '...' : ''}`);
           } else {
             console.log(`⚠️ [${course.name}] 無有效課程綱要內容，關鍵字為空`);
           }
           // 儲存到緩存
-          courseDetailsCache[courseKey] = details;
+          courseDetailsCache[courseDetailsKey] = details;
         } else {
           // 🔧 沒有課程詳細資訊，保存空標記避免重複嘗試
           console.log(`⚠️ [${course.name}] 無課程詳細資訊，跳過關鍵字提取`);
-          courseDetailsCache[courseKey] = { searchKeywords: '' };
+          courseDetailsCache[courseDetailsKey] = { searchKeywords: '', _partial: true };
         }
 
         return { success: true, course };
@@ -9467,10 +10012,11 @@ ${outlineContent}
         console.warn(`⚠️ 提取關鍵字失敗: ${course.name}`, error);
 
         // 如果失敗，仍然標記為已處理（避免下次再重複嘗試）
-        const courseKey = getCourseKey(course);
-        if (!courseDetailsCache[courseKey]) {
-          courseDetailsCache[courseKey] = {
-            searchKeywords: '' // 標記為空，表示已嘗試過
+        const courseDetailsKey = getCourseDetailsKey(course);
+        if (!courseDetailsCache[courseDetailsKey]) {
+          courseDetailsCache[courseDetailsKey] = {
+            searchKeywords: '',
+            _partial: true // 標記為空，表示已嘗試過
           };
         }
 
@@ -9566,8 +10112,8 @@ ${outlineContent}
 
     // 過濾出尚未提取過關鍵字的課程
     const coursesToProcess = allCourses.filter(course => {
-      const courseKey = getCourseKey(course);
-      const cached = courseDetailsCache[courseKey];
+      const courseDetailsKey = getCourseDetailsKey(course);
+      const cached = courseDetailsCache[courseDetailsKey];
       // 如果沒有緩存，或者沒有 searchKeywords 屬性（使用 hasOwnProperty 檢查，即使是空字串也算已提取）
       return !cached || !cached.hasOwnProperty('searchKeywords');
     });
@@ -9711,7 +10257,7 @@ ${outlineContent}
 
     // 處理單個課程
     async function processCourse(course) {
-      const courseKey = getCourseKey(course);
+      const courseDetailsKey = getCourseDetailsKey(course);
       try {
         const { baseData, descData } = await fetchCourseWithRetry(course);
         const details = extractCourseDetailsFromAPI(baseData, descData, course);
@@ -9720,15 +10266,16 @@ ${outlineContent}
         if (details) {
           const keywords = await extractKeywordsFromOutline(details, course.name);
           details.searchKeywords = keywords;
+          details._partial = false;
 
           // 儲存到緩存（不立即寫入存儲，由批次處理統一保存）
-          courseDetailsCache[courseKey] = details;
+          courseDetailsCache[courseDetailsKey] = details;
 
           return { success: true, course };
         } else {
           // 🔧 即使失敗也保存空標記，避免重複嘗試無綱要的課程
           console.warn(`⚠️ 無詳細資訊: ${course.name} (${course.cos_id})`);
-          courseDetailsCache[courseKey] = { searchKeywords: '' };
+          courseDetailsCache[courseDetailsKey] = { searchKeywords: '', _partial: true };
           return { success: false, course, error: '無課程詳細資訊' };
         }
       } catch (error) {
@@ -9741,7 +10288,7 @@ ${outlineContent}
 
         // 其他錯誤，保存空標記避免重複嘗試失敗的課程
         console.warn(`❌ 處理失敗: ${course.name} (${course.cos_id}) - ${error.message}`);
-        courseDetailsCache[courseKey] = { searchKeywords: '' };
+        courseDetailsCache[courseDetailsKey] = { searchKeywords: '', _partial: true };
         return { success: false, course, error: error.message };
       }
     }
