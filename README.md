@@ -1,4 +1,4 @@
-# NYCU 選課助手 v3.1.2
+# NYCU 選課助手 v3.2.0
 
 > 強大的 NYCU 選課工具，支援 AI 智能搜尋、自動關鍵字學習、課表製作與匯出、書籤管理、詳細資訊查詢
 
@@ -558,17 +558,17 @@ M56 資工         # 找到資工系週一5-6節的課程
 
 ```
 course_registration/
-├── manifest.json         # Chrome Extension 配置檔（Manifest V3）
-├── popup.html            # 側邊欄介面（含課表編輯器）
-├── popup.js              # 主要邏輯（搜尋、AI、書籤、課表）
-├── content.js            # 內容腳本（資料抓取）
-├── background.js         # 背景腳本
-├── styles.css            # 樣式檔（大幅擴充）
-├── html2canvas.min.js    # 課表截圖函式庫
-├── 128.png               # 擴充功能圖示
-├── README.md             # 說明文件
-├── INSTALL.md            # 安裝指南
-└── STORE_DESCRIPTION.txt # Chrome Web Store 商店描述
+├── manifest.json              # Chrome Extension 配置檔（Manifest V3）
+├── popup.html                 # 側邊欄介面（含課表編輯器）
+├── popup.js                   # 主要邏輯（搜尋、AI、書籤、課表）
+├── content.js                 # 內容腳本（資料抓取）
+├── background.js              # 背景腳本
+├── styles.css                 # 樣式檔
+├── html2canvas.min.js         # 課表截圖函式庫
+├── 128.png                    # 擴充功能圖示
+├── LICENSE                    # MIT 授權
+├── README.md                  # 說明文件
+└── INSTALL.md                 # 安裝指南
 ```
 
 ## 🔧 技術架構
@@ -621,7 +621,7 @@ course_registration/
 
 ### 快速鍵
 - **Enter**：執行搜尋
-- **Ctrl + Shift + L**（開發模式）：載入示範資料
+- **ESC**：關閉彈出視窗
 
 ### 資料管理
 - 資料會在 7 天後自動過期
@@ -662,6 +662,26 @@ course_registration/
 - A: 不會，書籤資料會永久儲存在瀏覽器本地，除非手動清空
 
 ## 🔄 更新日誌
+
+### v3.2.0 (2026-04-06) - 安全性與程式碼品質強化
+- 🔒 **修復所有 XSS 漏洞**
+  - 74 處 HTML 動態輸出全面加入 `escapeHtml()` 跳脫處理
+  - 涵蓋課程名稱、教師、教室、備註、評量方式等所有來自 API 的欄位
+- 🔒 **新增 Gemini API Key 安全提醒**
+  - 建議使用者在 Google Cloud Console 限制 API Key 使用範圍
+- 🧹 **清理 production 殘留**
+  - 移除測試用 `Ctrl+Shift+L` 快捷鍵與 `addSampleData()` 函數
+  - 移除未使用的 `new_ai_search_logic.js` 和 `check_course.js`
+  - 移除備份檔 `popup.js.backup`
+- 🔧 **程式碼品質修復**
+  - 修正 `interceptConsole()` 重複呼叫問題
+  - 修正 `window.allDepartments` 全域變數污染
+  - 課表日曆匯出的學期開始日期改為動態計算
+- 📝 **文件改善**
+  - 新增 MIT LICENSE 檔案
+  - 修正 GitHub 連結指向正確的 repo（NYCU-Chung）
+  - 修正安裝說明中的資料有效期（24 小時 → 7 天）
+  - 新增 `.gitignore`
 
 ### v3.1.2 (2026-03-20) - 課程載入修正
 - 🔧 **修正軍訓（全民國防教育）課程無法載入的問題**

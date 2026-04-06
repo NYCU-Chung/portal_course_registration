@@ -1,0 +1,28 @@
+# Backup files
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Node
+node_modules/
+
+# Sensitive
+.env
+*.pem
+*.key
+
+# Chrome Web Store internal
+STORE_DESCRIPTION.txt
+STORE_SUBMISSION_INFO.txt
+
+# Claude Code
+.claude/

@@ -218,6 +218,8 @@ async function callGeminiAPI(config, prompt) {
       generationConfig: generationConfig
     };
 
+    // SECURITY: Gemini API requires key in URL (no Authorization header support).
+    // Users should restrict API key scope in Google Cloud Console.
     const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
       method: 'POST',
       headers: {

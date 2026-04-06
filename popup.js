@@ -378,10 +378,7 @@ function parseRoomLocation(roomCode) {
 
 // 等待 DOM 載入完成
 document.addEventListener('DOMContentLoaded', function() {
-  // 啟動 console 攔截
-  interceptConsole();
-
-  // 驗證關鍵 DOM 元素是否存在
+  let allDepartments = [];
   const requiredElements = ['searchInput', 'searchBtn', 'results', 'dataStatus'];
   const missingElements = requiredElements.filter(id => !document.getElementById(id));
   if (missingElements.length > 0) {
@@ -829,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 儲存所有系所供後續使用
-    window.allDepartments = Array.from(departments).sort();
+    allDepartments = Array.from(departments).sort();
 
     updateDepartmentOptions();
   }
@@ -843,8 +840,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!selectedCollege) {
       // 如果沒有選擇學院，顯示所有系所
 
-      if (window.allDepartments) {
-        window.allDepartments.forEach(dept => {
+      if (allDepartments) {
+        allDepartments.forEach(dept => {
           const option = document.createElement('option');
           option.value = dept;
           option.textContent = dept;
@@ -1627,8 +1624,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   </div>
                 </div>
               </div>` : ''}
-              <div class="course-code">${course.code}</div>
-              <div class="course-name">${course.name}</div>
+              <div class="course-code">${escapeHtml(course.code)}</div>
+              <div class="course-name">${escapeHtml(course.name)}</div>
             </div>
             <div class="course-actions">
               <button class="add-to-timetable-btn ${isInTimetable ? 'in-timetable' : ''}" data-course-index="${index}" title="${isInTimetable ? '從課表移除' : '加入課表'}">
@@ -1640,10 +1637,10 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
 
-          ${course.teacher ? `<div class="course-info">👨‍🏫 ${course.teacher}</div>` : ''}
-          ${course.time ? `<div class="course-info">🕐 ${course.time}</div>` : ''}
-          ${course.room ? `<div class="course-info">📍 ${course.room}</div>` : ''}
-          ${course.credits ? `<div class="course-info">📚 ${course.credits} 學分</div>` : ''}
+          ${course.teacher ? `<div class="course-info">👨‍🏫 ${escapeHtml(course.teacher)}</div>` : ''}
+          ${course.time ? `<div class="course-info">🕐 ${escapeHtml(course.time)}</div>` : ''}
+          ${course.room ? `<div class="course-info">📍 ${escapeHtml(course.room)}</div>` : ''}
+          ${course.credits ? `<div class="course-info">📚 ${escapeHtml(course.credits)} 學分</div>` : ''}
 
           <div class="course-action-buttons">
             <button class="view-detail-btn" data-course-index="${index}">
@@ -2320,8 +2317,8 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="course-item timetable-course-item" data-timetable-index="${index}">
             <div class="course-header">
               <div class="course-header-left">
-                <div class="course-code">${course.code}</div>
-                <div class="course-name">${course.name}</div>
+                <div class="course-code">${escapeHtml(course.code)}</div>
+                <div class="course-name">${escapeHtml(course.name)}</div>
               </div>
               <div class="course-actions">
                 <button class="timetable-bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" data-timetable-index="${index}" title="${isBookmarked ? '管理書籤' : '加入書籤'}">
@@ -2333,10 +2330,10 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
             </div>
 
-            ${course.teacher ? `<div class="course-info">👨‍🏫 ${course.teacher}</div>` : ''}
-            ${course.time ? `<div class="course-info">🕐 ${course.time}</div>` : ''}
-            ${course.room ? `<div class="course-info">📍 ${course.room}</div>` : ''}
-            ${course.credits ? `<div class="course-info">📚 ${course.credits} 學分</div>` : ''}
+            ${course.teacher ? `<div class="course-info">👨‍🏫 ${escapeHtml(course.teacher)}</div>` : ''}
+            ${course.time ? `<div class="course-info">🕐 ${escapeHtml(course.time)}</div>` : ''}
+            ${course.room ? `<div class="course-info">📍 ${escapeHtml(course.room)}</div>` : ''}
+            ${course.credits ? `<div class="course-info">📚 ${escapeHtml(course.credits)} 學分</div>` : ''}
 
             <div class="course-action-buttons">
               <button class="view-detail-btn timetable-detail-btn" data-timetable-index="${index}">
@@ -2393,8 +2390,8 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="course-item" data-category-id="${categoryId}" data-course-key="${courseKey}">
             <div class="course-header">
               <div class="course-header-left">
-                <div class="course-code">${course.code}</div>
-                <div class="course-name">${course.name}</div>
+                <div class="course-code">${escapeHtml(course.code)}</div>
+                <div class="course-name">${escapeHtml(course.name)}</div>
               </div>
               <div class="course-actions">
                 <button class="add-to-timetable-btn ${isInTimetable ? 'in-timetable' : ''}" data-category-id="${categoryId}" data-course-key="${courseKey}" title="${isInTimetable ? '從課表移除' : '加入課表'}">
@@ -2406,10 +2403,10 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
             </div>
 
-            ${course.teacher ? `<div class="course-info">👨‍🏫 ${course.teacher}</div>` : ''}
-            ${course.time ? `<div class="course-info">🕐 ${course.time}</div>` : ''}
-            ${course.room ? `<div class="course-info">📍 ${course.room}</div>` : ''}
-            ${course.credits ? `<div class="course-info">📚 ${course.credits} 學分</div>` : ''}
+            ${course.teacher ? `<div class="course-info">👨‍🏫 ${escapeHtml(course.teacher)}</div>` : ''}
+            ${course.time ? `<div class="course-info">🕐 ${escapeHtml(course.time)}</div>` : ''}
+            ${course.room ? `<div class="course-info">📍 ${escapeHtml(course.room)}</div>` : ''}
+            ${course.credits ? `<div class="course-info">📚 ${escapeHtml(course.credits)} 學分</div>` : ''}
 
             <div class="course-action-buttons">
               <button class="view-detail-btn" data-category-id="${categoryId}" data-course-key="${courseKey}">
@@ -2433,7 +2430,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="bookmark-section-header clickable" data-category-id="${categoryId}">
             <div class="bookmark-section-title-wrapper">
               <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
-              <span class="bookmark-section-title">${category.icon} ${category.name}</span>
+              <span class="bookmark-section-title">${escapeHtml(category.icon)} ${escapeHtml(category.name)}</span>
             </div>
             <div class="bookmark-section-actions">
               <span class="bookmark-section-count">${courses.length} 門</span>
@@ -2668,8 +2665,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const isCurrentCategory = categoryId === currentCategoryId;
       categoriesHtml += `
         <div class="category-select-item ${isCurrentCategory ? 'current' : ''}" data-category-id="${categoryId}">
-          <span class="category-icon">${category.icon}</span>
-          <span class="category-name">${category.name}</span>
+          <span class="category-icon">${escapeHtml(category.icon)}</span>
+          <span class="category-name">${escapeHtml(category.name)}</span>
           ${isCurrentCategory ? '<span class="current-badge">目前</span>' : ''}
         </div>
       `;
@@ -2679,7 +2676,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="course-modal-header">
         <div class="course-modal-title">
           <div class="course-modal-name">選擇分類</div>
-          <div class="course-modal-subtitle">${course.name}</div>
+          <div class="course-modal-subtitle">${escapeHtml(course.name)}</div>
         </div>
         <button class="course-modal-close">×</button>
       </div>
@@ -3252,9 +3249,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
           html += `
             <td class="course-slot category-${category}${incompleteClass}" data-slot-key="${slotKey}" data-course-key="${courseKey}" data-cos-id="${course.cos_id || ''}" style="cursor: pointer;">
-              <div class="slot-course-name">${course.name}</div>
+              <div class="slot-course-name">${escapeHtml(course.name)}</div>
               ${course.teacher ? `<div class="slot-course-teacher">${truncateTeachers(course.teacher)}</div>` : ''}
-              <div class="slot-course-room">${course.room || ''}</div>
+              <div class="slot-course-room">${escapeHtml(course.room || '')}</div>
               <button class="slot-remove-btn" data-course-key="${courseKey}">×</button>
             </td>
           `;
@@ -3269,9 +3266,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
           html += `
             <td class="conflict-slot category-${category}${incompleteClass}" data-slot-key="${slotKey}" data-course-key="${selectedCourseKey}" data-cos-id="${selectedCourse.cos_id || ''}" style="cursor: pointer;">
-              <div class="slot-course-name">${selectedCourse.name}</div>
+              <div class="slot-course-name">${escapeHtml(selectedCourse.name)}</div>
               ${selectedCourse.teacher ? `<div class="slot-course-teacher">${truncateTeachers(selectedCourse.teacher)}</div>` : ''}
-              <div class="slot-course-room">${selectedCourse.room || ''}</div>
+              <div class="slot-course-room">${escapeHtml(selectedCourse.room || '')}</div>
               <div class="slot-course-switcher">
                 <button class="course-prev-btn" data-slot-key="${slotKey}" title="上一個課程">▲</button>
                 <span class="course-count">${currentIndex + 1}/${coursesInSlot.length}</span>
@@ -3309,9 +3306,9 @@ document.addEventListener('DOMContentLoaded', function() {
               const category = getCourseCategory(course);
               return `
                 <div class="no-time-course-card course-slot category-${category}" data-course-key="${courseKey}" data-cos-id="${course.cos_id || ''}" style="cursor: pointer;">
-                  <div class="slot-course-name">${course.name}</div>
+                  <div class="slot-course-name">${escapeHtml(course.name)}</div>
                   ${course.teacher ? `<div class="slot-course-teacher">${truncateTeachers(course.teacher)}</div>` : ''}
-                  ${course.credits ? `<div class="slot-course-credits">${course.credits} 學分</div>` : ''}
+                  ${course.credits ? `<div class="slot-course-credits">${escapeHtml(course.credits)} 學分</div>` : ''}
                   <button class="no-time-remove-btn" data-course-key="${courseKey}">×</button>
                 </div>
               `;
@@ -3533,15 +3530,15 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="list-course-item category-${category}" data-course-key="${courseKey}">
           <div class="list-course-header">
             <div class="list-course-left">
-              <div class="list-course-code">${course.code}</div>
-              <div class="list-course-name">${course.name}</div>
+              <div class="list-course-code">${escapeHtml(course.code)}</div>
+              <div class="list-course-name">${escapeHtml(course.name)}</div>
             </div>
             <button class="list-remove-btn" data-course-key="${courseKey}">× 移除</button>
           </div>
-          ${course.teacher ? `<div class="list-course-info">👨‍🏫 ${course.teacher}</div>` : ''}
-          ${course.time ? `<div class="list-course-info">🕐 ${course.time}</div>` : ''}
-          ${course.room ? `<div class="list-course-info">📍 ${course.room}</div>` : ''}
-          ${course.credits ? `<div class="list-course-info">📚 ${course.credits} 學分</div>` : ''}
+          ${course.teacher ? `<div class="list-course-info">👨‍🏫 ${escapeHtml(course.teacher)}</div>` : ''}
+          ${course.time ? `<div class="list-course-info">🕐 ${escapeHtml(course.time)}</div>` : ''}
+          ${course.room ? `<div class="list-course-info">📍 ${escapeHtml(course.room)}</div>` : ''}
+          ${course.credits ? `<div class="list-course-info">📚 ${escapeHtml(course.credits)} 學分</div>` : ''}
         </div>
       `;
     }).join('');
@@ -4063,8 +4060,25 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // 動態計算預設學期開始日期
+    function getDefaultSemesterStart() {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+      // 2-7月 → 春季學期（2月第3個星期一），8-1月 → 秋季學期（9月第2個星期一）
+      const targetMonth = (month >= 2 && month <= 7) ? 1 : 8; // 0-indexed
+      const targetYear = (month === 1) ? year : (month >= 8 ? year : year);
+      const nthMonday = (month >= 2 && month <= 7) ? 3 : 2;
+      const first = new Date(targetYear, targetMonth, 1);
+      const firstDay = first.getDay();
+      const firstMonday = firstDay <= 1 ? (1 - firstDay + 1) : (8 - firstDay + 1);
+      const day = firstMonday + (nthMonday - 1) * 7;
+      const d = new Date(targetYear, targetMonth, day);
+      return d.toISOString().slice(0, 10);
+    }
+
     // 詢問用戶學期開始日期
-    const semesterStart = prompt('請輸入學期開始日期（格式：YYYY-MM-DD）\n學期共16週，將自動計算結束日期', '2026-02-23');
+    const semesterStart = prompt('請輸入學期開始日期（格式：YYYY-MM-DD）\n學期共16週，將自動計算結束日期', getDefaultSemesterStart());
     if (!semesterStart) return;
 
     // 驗證日期格式
@@ -4356,7 +4370,7 @@ document.addEventListener('DOMContentLoaded', function() {
       memoHtml = `
         <div class="detail-section">
           <h2 class="detail-section-title">📝 備註</h2>
-          <div class="detail-memo-content">${updatedCourse.memo}</div>
+          <div class="detail-memo-content">${escapeHtml(updatedCourse.memo)}</div>
         </div>
       `;
     }
@@ -4364,12 +4378,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 組合完整內容
     detailPageContent.innerHTML = `
       <div class="detail-page-header">
-        <div class="detail-course-code">${updatedCourse.code}</div>
-        <div class="detail-course-name">${updatedCourse.name}</div>
-        ${updatedCourse.teacher ? `<div class="detail-course-info">👨‍🏫 授課教師：${updatedCourse.teacher}</div>` : ''}
-        ${updatedCourse.credits ? `<div class="detail-course-info">📚 學分：${updatedCourse.credits}</div>` : ''}
-        ${updatedCourse.time ? `<div class="detail-course-info">🕐 時間：${updatedCourse.time}</div>` : ''}
-        ${updatedCourse.room ? `<div class="detail-course-info">📍 教室：${updatedCourse.room}</div>` : ''}
+        <div class="detail-course-code">${escapeHtml(updatedCourse.code)}</div>
+        <div class="detail-course-name">${escapeHtml(updatedCourse.name)}</div>
+        ${updatedCourse.teacher ? `<div class="detail-course-info">👨‍🏫 授課教師：${escapeHtml(updatedCourse.teacher)}</div>` : ''}
+        ${updatedCourse.credits ? `<div class="detail-course-info">📚 學分：${escapeHtml(updatedCourse.credits)}</div>` : ''}
+        ${updatedCourse.time ? `<div class="detail-course-info">🕐 時間：${escapeHtml(updatedCourse.time)}</div>` : ''}
+        ${updatedCourse.room ? `<div class="detail-course-info">📍 教室：${escapeHtml(updatedCourse.room)}</div>` : ''}
       </div>
 
       ${memoHtml}
@@ -4536,15 +4550,15 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="details-grid">
             <div class="detail-item" style="grid-column: 1 / -1;">
               <span class="detail-label">時間地點：</span>
-              <span class="detail-value">${details.時間地點}</span>
+              <span class="detail-value">${escapeHtml(details.時間地點)}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">學分：</span>
-              <span class="detail-value">${details.學分}</span>
+              <span class="detail-value">${escapeHtml(details.學分)}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">必選修：</span>
-              <span class="detail-value ${getRequiredClass(details.必選修)}">${details.必選修}</span>
+              <span class="detail-value ${getRequiredClass(details.必選修)}">${escapeHtml(details.必選修)}</span>
             </div>
           </div>
         </div>
@@ -4552,35 +4566,35 @@ document.addEventListener('DOMContentLoaded', function() {
         ${details.先修科目 !== '未提供' ? `
         <div class="details-subsection">
           <div class="details-subtitle">📚 先修科目或先備能力</div>
-          <div class="detail-text">${details.先修科目}</div>
+          <div class="detail-text">${escapeHtml(details.先修科目)}</div>
         </div>
         ` : ''}
 
         ${details.課程概述 !== '未提供' ? `
         <div class="details-subsection">
           <div class="details-subtitle">🎯 課程概述與目標</div>
-          <div class="detail-text">${details.課程概述}</div>
+          <div class="detail-text">${escapeHtml(details.課程概述)}</div>
         </div>
         ` : ''}
 
         ${details.searchKeywords && details.searchKeywords !== '' ? `
         <div class="details-subsection">
           <div class="details-subtitle">🤖 AI 提取的搜尋關鍵字</div>
-          <div class="detail-text" style="background: #f0f7ff; padding: 12px; border-radius: 6px; border-left: 3px solid #4a90e2;">${details.searchKeywords}</div>
+          <div class="detail-text" style="background: #f0f7ff; padding: 12px; border-radius: 6px; border-left: 3px solid #4a90e2;">${escapeHtml(details.searchKeywords)}</div>
         </div>
         ` : ''}
 
         ${details.教科書 !== '未提供' ? `
         <div class="details-subsection">
           <div class="details-subtitle">📖 教科書</div>
-          <div class="detail-text">${details.教科書}</div>
+          <div class="detail-text">${escapeHtml(details.教科書)}</div>
         </div>
         ` : ''}
 
         ${details.評量方式 !== '未提供' ? `
         <div class="details-subsection">
           <div class="details-subtitle">📊 評量方式</div>
-          <div class="detail-text">${details.評量方式}</div>
+          <div class="detail-text">${escapeHtml(details.評量方式)}</div>
         </div>
         ` : ''}
 
@@ -4758,12 +4772,12 @@ document.addEventListener('DOMContentLoaded', function() {
               ${isBookmarked ? '★' : '☆'}
             </button>
             <div class="slot-course-item-left">
-              <div class="course-code">${course.code}</div>
-              <div class="course-name">${course.name}</div>
-              ${course.teacher ? `<div class="course-info">👨‍🏫 ${course.teacher}</div>` : ''}
-              ${course.time ? `<div class="course-info">🕐 ${course.time}</div>` : ''}
-              ${course.room ? `<div class="course-info">📍 ${course.room}</div>` : ''}
-              ${course.credits ? `<div class="course-info">📚 ${course.credits} 學分</div>` : ''}
+              <div class="course-code">${escapeHtml(course.code)}</div>
+              <div class="course-name">${escapeHtml(course.name)}</div>
+              ${course.teacher ? `<div class="course-info">👨‍🏫 ${escapeHtml(course.teacher)}</div>` : ''}
+              ${course.time ? `<div class="course-info">🕐 ${escapeHtml(course.time)}</div>` : ''}
+              ${course.room ? `<div class="course-info">📍 ${escapeHtml(course.room)}</div>` : ''}
+              ${course.credits ? `<div class="course-info">📚 ${escapeHtml(course.credits)} 學分</div>` : ''}
             </div>
             <div class="slot-course-item-right">
               <button class="slot-course-rating-btn" data-course-index="${index}" title="在 OPT 歐趴糖查看課程評價">
@@ -5008,8 +5022,8 @@ document.addEventListener('DOMContentLoaded', function() {
       filterToggleBtn.classList.remove('expanded');
       backBtn.style.display = 'block';
       modalTitle.innerHTML = `
-        <div class="course-modal-name">${course.name}</div>
-        <div class="course-modal-subtitle">${course.code}</div>
+        <div class="course-modal-name">${escapeHtml(course.name)}</div>
+        <div class="course-modal-subtitle">${escapeHtml(course.code)}</div>
       `;
 
       // 顯示載入中
@@ -5115,7 +5129,7 @@ document.addEventListener('DOMContentLoaded', function() {
         memoHtml = `
           <div class="detail-section">
             <h2 class="detail-section-title">📝 備註</h2>
-            <div class="detail-memo-content">${updatedCourse.memo}</div>
+            <div class="detail-memo-content">${escapeHtml(updatedCourse.memo)}</div>
           </div>
         `;
       }
@@ -5126,12 +5140,12 @@ document.addEventListener('DOMContentLoaded', function() {
       // 組合完整內容
       detailView.innerHTML = `
         <div class="detail-page-header">
-          <div class="detail-course-code">${updatedCourse.code}</div>
-          <div class="detail-course-name">${updatedCourse.name}</div>
-          ${updatedCourse.teacher ? `<div class="detail-course-info">👨‍🏫 授課教師：${updatedCourse.teacher}</div>` : ''}
-          ${updatedCourse.time ? `<div class="detail-course-info">🕐 時間：${updatedCourse.time}</div>` : ''}
-          ${updatedCourse.room ? `<div class="detail-course-info">📍 教室：${updatedCourse.room}</div>` : ''}
-          ${updatedCourse.credits ? `<div class="detail-course-info">📚 學分：${updatedCourse.credits}</div>` : ''}
+          <div class="detail-course-code">${escapeHtml(updatedCourse.code)}</div>
+          <div class="detail-course-name">${escapeHtml(updatedCourse.name)}</div>
+          ${updatedCourse.teacher ? `<div class="detail-course-info">👨‍🏫 授課教師：${escapeHtml(updatedCourse.teacher)}</div>` : ''}
+          ${updatedCourse.time ? `<div class="detail-course-info">🕐 時間：${escapeHtml(updatedCourse.time)}</div>` : ''}
+          ${updatedCourse.room ? `<div class="detail-course-info">📍 教室：${escapeHtml(updatedCourse.room)}</div>` : ''}
+          ${updatedCourse.credits ? `<div class="detail-course-info">📚 學分：${escapeHtml(updatedCourse.credits)}</div>` : ''}
         </div>
 
         ${memoHtml}
@@ -5289,9 +5303,9 @@ document.addEventListener('DOMContentLoaded', function() {
     modal.innerHTML = `
       <div class="course-modal-header">
         <div class="course-modal-title">
-          <div class="course-modal-code">${updatedCourse.code}</div>
-          <div class="course-modal-name">${updatedCourse.name}</div>
-          ${updatedCourse.teacher ? `<div class="course-modal-teacher">👨‍🏫 ${updatedCourse.teacher}</div>` : ''}
+          <div class="course-modal-code">${escapeHtml(updatedCourse.code)}</div>
+          <div class="course-modal-name">${escapeHtml(updatedCourse.name)}</div>
+          ${updatedCourse.teacher ? `<div class="course-modal-teacher">👨‍🏫 ${escapeHtml(updatedCourse.teacher)}</div>` : ''}
         </div>
         <button class="course-modal-close">×</button>
       </div>
@@ -5433,7 +5447,7 @@ document.addEventListener('DOMContentLoaded', function() {
         noteHTML = `
           <div class="course-modal-note">
             <div class="course-modal-note-title">📌 備註</div>
-            <div class="course-modal-note-content">${details.備註}</div>
+            <div class="course-modal-note-content">${escapeHtml(details.備註)}</div>
           </div>
         `;
       }
@@ -5442,11 +5456,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="course-modal-info-grid">
           <div class="course-modal-info-item">
             <div class="course-modal-info-label">必選修</div>
-            <div class="course-modal-info-value ${getRequiredClass(details.必選修)}">${details.必選修}</div>
+            <div class="course-modal-info-value ${getRequiredClass(details.必選修)}">${escapeHtml(details.必選修)}</div>
           </div>
           <div class="course-modal-info-item">
             <div class="course-modal-info-label">學分數</div>
-            <div class="course-modal-info-value">${details.學分}</div>
+            <div class="course-modal-info-value">${escapeHtml(details.學分)}</div>
           </div>
         </div>
         ${gradingHTML}
@@ -5458,7 +5472,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="course-modal-info-grid">
           <div class="course-modal-info-item">
             <div class="course-modal-info-label">學分數</div>
-            <div class="course-modal-info-value">${updatedCourse.credits || '未提供'}</div>
+            <div class="course-modal-info-value">${escapeHtml(updatedCourse.credits || '未提供')}</div>
           </div>
         </div>
         <div class="course-modal-error">無法載入詳細資訊</div>
@@ -6454,6 +6468,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const model = (geminiModelSelect && geminiModelSelect.value)
         || aiConfig.gemini.model
         || 'gemini-2.5-flash-lite';
+      // SECURITY: Gemini API requires key in URL (no Authorization header support).
+      // Users should restrict API key scope in Google Cloud Console.
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
         method: 'POST',
         headers: {
